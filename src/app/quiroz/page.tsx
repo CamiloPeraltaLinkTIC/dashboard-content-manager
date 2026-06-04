@@ -1,10 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { TopicTabs } from "@/components/topic-tabs";
-import { UserRound } from "lucide-react";
 import {
   pageHeaders,
   quirozTabs,
@@ -20,159 +18,182 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { 
+  faUser, 
+  faMicrophone, 
+  faTv, 
+  faRadio, 
+  faNewspaper, 
+  faGlobe, 
+  faArrowTrendUp 
+} from "@fortawesome/free-solid-svg-icons";
 
 function QuirozOverview() {
   const q = quirozData;
+
+  const getMediaIcon = (medio: string) => {
+    const name = medio.toLowerCase();
+    if (name.includes("tiempo") || name.includes("semana")) return faNewspaper;
+    if (name.includes("radio") || name.includes("la fm") || name.includes("blu")) return faRadio;
+    if (name.includes("noticias") || name.includes("tv")) return faTv;
+    return faGlobe;
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="grid md:grid-cols-3 gap-4">
-        {/* Profile card */}
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center text-center">
-            <div className="h-20 w-20 rounded-full bg-accent/30 border-2 border-cne-gold flex items-center justify-center mb-3">
-              <UserRound className="h-10 w-10 text-cne-gold" />
+    <div className="space-y-5 fade-in">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Profile Card */}
+        <div className="kpi-card p-5 flex flex-col items-center gap-3 text-center rounded-2xl">
+          <div 
+            className="w-20 h-20 rounded-full flex items-center justify-center" 
+            style={{ 
+              background: "linear-gradient(135deg, rgb(11, 65, 132), rgb(155, 111, 8))", 
+              border: "3px solid rgb(243, 177, 22)" 
+            }}
+          >
+            <FontAwesomeIcon icon={faUser} className="text-2xl" style={{ color: "rgb(243, 177, 22)" }} />
+          </div>
+          <div>
+            <div className="font-bold text-lg">{q.nombre}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{q.cargo}</div>
+            <div className="text-xs text-muted-foreground mt-1">Desde {q.desde} · {q.partido}</div>
+          </div>
+          <div className="w-full h-px bg-white/5 my-2"></div>
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>134</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Declaraciones públicas</div>
             </div>
-            <h2 className="text-lg font-bold">{q.nombre}</h2>
-            <p className="text-xs text-muted-foreground">{q.cargo}</p>
-            <p className="text-[10px] text-muted-foreground">
-              Desde {q.desde} — {q.partido}
-            </p>
-            <div className="grid grid-cols-2 gap-4 mt-4 w-full">
-              {q.kpis.map((k) => (
-                <div key={k.label}>
-                  <p className="text-xl font-bold text-cne-blue">{k.value}</p>
-                  <p className="text-[10px] text-muted-foreground">{k.label}</p>
-                </div>
-              ))}
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "rgb(243, 177, 22)" }}>89</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Apariciones en medios</div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>12</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Cuentas verificadas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "rgb(243, 177, 22)" }}>47</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Entrevistas en TV</div>
+            </div>
+          </div>
+        </div>
 
-        {/* Sentiment card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Sentimiento de Menciones</CardTitle>
-            <p className="text-[10px] text-muted-foreground">
-              Total: {q.menciones.total.toLocaleString()} menciones
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { label: "Positivo", pct: q.menciones.positivo, color: "#2eb88a" },
-              { label: "Neutral", pct: q.menciones.neutral, color: "#e8a817" },
-              { label: "Negativo", pct: q.menciones.negativo, color: "#dc2828" },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-3">
-                <span className="text-xs w-16">{s.label}</span>
-                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${s.pct}%`, backgroundColor: s.color }}
-                  />
-                </div>
-                <span className="text-xs font-semibold w-10 text-right" style={{ color: s.color }}>
-                  {s.pct}%
-                </span>
+        {/* Sentiment Card */}
+        <div className="kpi-card p-4 flex flex-col rounded-2xl">
+          <h3 className="text-sm font-semibold mb-1">Sentimiento de Menciones</h3>
+          <p className="text-xs text-muted-foreground mb-3">Total: 8.421 menciones</p>
+          <div className="flex-1 flex flex-col justify-center space-y-3">
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground text-xs">Positivo</span>
+                <span className="font-bold" style={{ color: "rgb(46, 184, 138)" }}>52%</span>
               </div>
-            ))}
-            <div className="mt-4 p-3 rounded-lg bg-accent/20 text-center">
-              <p className="text-3xl font-bold text-cne-gold">
-                {q.menciones.total.toLocaleString()}
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                menciones totales 2026
-              </p>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-[#2eb88a]" style={{ width: "52%" }}></div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground text-xs">Neutral</span>
+                <span className="font-bold" style={{ color: "rgb(243, 177, 22)" }}>31%</span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-[#f3b116]" style={{ width: "31%" }}></div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground text-xs">Negativo</span>
+                <span className="font-bold" style={{ color: "rgb(223, 58, 58)" }}>17%</span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-[#df3a3a]" style={{ width: "17%" }}></div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 p-3 rounded-lg text-center" style={{ background: "rgb(25, 31, 46)" }}>
+            <div className="text-2xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>8.421</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">menciones totales 2026</div>
+          </div>
+        </div>
 
-        {/* Weekly chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Menciones por Dia</CardTitle>
-            <p className="text-[10px] text-muted-foreground">Ultima semana</p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+        {/* Mentions by Day Chart */}
+        <div className="kpi-card p-4 rounded-2xl">
+          <h3 className="text-sm font-semibold mb-1">Menciones por Día</h3>
+          <p className="text-xs text-muted-foreground mb-4">Última semana</p>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={q.semanalMenciones}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 30% 18%)" />
-                <XAxis
-                  dataKey="dia"
-                  tick={{ fill: "hsl(213 15% 55%)", fontSize: 11 }}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis 
+                  dataKey="dia" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#888', fontSize: 11 }} 
                 />
-                <YAxis tick={{ fill: "hsl(213 15% 55%)", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(222 40% 9%)",
-                    border: "1px solid hsl(222 30% 18%)",
-                    borderRadius: 8,
-                    color: "#fff",
-                  }}
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#888', fontSize: 11 }} 
                 />
-                <Bar dataKey="n" fill="hsl(42 90% 52%)" radius={[4, 4, 0, 0]} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0e1320', border: '1px solid #20283c', borderRadius: '6px' }}
+                />
+                <Bar dataKey="n" fill="hsl(213,85%,55%)" radius={[3, 3, 0, 0]} barSize={34} />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Media appearances table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Apariciones Recientes en Medios</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border/60 text-muted-foreground">
-                  <th className="text-left py-2 font-medium">Medio</th>
-                  <th className="text-left py-2 font-medium">Fecha</th>
-                  <th className="text-left py-2 font-medium">Tema</th>
-                  <th className="text-right py-2 font-medium">Sentimiento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {q.apariciones.map((a, i) => (
-                  <tr key={i} className="border-b border-border/30">
-                    <td className="py-2.5 font-medium flex items-center gap-2">
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{
-                          backgroundColor:
-                            a.sentimiento === "positivo"
-                              ? "#2eb88a"
-                              : a.sentimiento === "negativo"
-                                ? "#dc2828"
-                                : "#e8a817",
-                        }}
-                      />
-                      {a.medio}
-                    </td>
-                    <td className="py-2.5 text-muted-foreground">{a.fecha}</td>
-                    <td className="py-2.5">{a.tema}</td>
-                    <td className="py-2.5 text-right">
-                      <span
-                        className="font-semibold uppercase text-[10px]"
-                        style={{
-                          color:
-                            a.sentimiento === "positivo"
-                              ? "#2eb88a"
-                              : a.sentimiento === "negativo"
-                                ? "#dc2828"
-                                : "#e8a817",
-                        }}
-                      >
-                        {a.sentimiento}
+      {/* Media Appearances Card */}
+      <div className="kpi-card p-4 rounded-2xl">
+        <div className="flex items-center gap-2 mb-3">
+          <FontAwesomeIcon icon={faMicrophone} className="text-blue-500" />
+          <h3 className="text-sm font-semibold">Apariciones Recientes en Medios</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Medio</th>
+                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Fecha</th>
+                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Tema</th>
+                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Sentimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.apariciones.map((a, i) => (
+                <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                  <td className="py-2.5 pr-4">
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: "rgb(43, 130, 238)" }}>
+                        <FontAwesomeIcon icon={getMediaIcon(a.medio)} className="w-3 h-3" />
                       </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                      <span className="font-medium">{a.medio}</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 pr-4 text-muted-foreground text-xs">{a.fecha}</td>
+                  <td className="py-2.5 pr-4 text-slate-300">{a.tema}</td>
+                  <td className="py-2.5">
+                    <span 
+                        className="px-2 py-0.5 rounded-full text-[10px] font-bold" 
+                        style={{ 
+                            color: a.sentimiento === "positivo" ? "rgb(46, 184, 138)" : a.sentimiento === "negativo" ? "rgb(223, 58, 58)" : "rgb(243, 177, 22)",
+                            background: "rgba(255,255,255,0.03)"
+                        }}
+                    >
+                        {a.sentimiento.charAt(0).toUpperCase() + a.sentimiento.slice(1)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -181,18 +202,20 @@ export default function QuirozPage() {
   const h = pageHeaders.quiroz;
   const d = topicData.quiroz;
   return (
-    <div className="p-6">
+    <div className="p-6 h-screen overflow-y-auto bg-[#03060d] text-white">
       <PageHeader badges={h.badges} title={h.title} description={h.description} />
-      <TopicTabs
-        tabs={quirozTabs}
-        overviewContent={<QuirozOverview />}
-        narrativa={d.narrativa}
-        pilares={d.pilares}
-        noticias={d.noticias}
-        contenido={d.contenido}
-        conversacion={d.conversacion}
-        pauta={d.pauta}
-      />
+      <div className="mt-6">
+        <TopicTabs
+            tabs={quirozTabs}
+            overviewContent={<QuirozOverview />}
+            narrativa={d.narrativa}
+            pilares={d.pilares}
+            noticias={d.noticias}
+            contenido={d.contenido}
+            conversacion={d.conversacion}
+            pauta={d.pauta}
+        />
+      </div>
     </div>
   );
 }

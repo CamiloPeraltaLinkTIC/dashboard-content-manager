@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Globe from "react-globe.gl";
 import * as topojson from "topojson-client";
 import { Topology } from "topojson-specification";
-import { countriesData } from "@/data/mock";
+import { countriesData, globeMarkers } from "@/data/mock";
 import { Button } from "@/components/ui/button";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 // Importar los iconos de FontAwesome
 import { faTwitter, faTiktok, faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
+import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar } from "@fortawesome/free-solid-svg-icons";
 
 // Función para convertir un icono de FA a string SVG
 const faToSvg = (faIcon: any, color: string = "white") => {
     const { width, height, svgPathData } = faIcon.icon;
-    return `<svg viewBox="0 0 ${width} ${height}" width="14" height="14" fill="${color}"><path d="${svgPathData}"/></svg>`;
+    return `<svg viewBox="0 0 ${width} ${height}" width="14" height="14" fill="${color}" style="display:inline-block; vertical-align:middle;"><path d="${svgPathData}"/></svg>`;
 };
 
 const platformIcons: Record<string, string> = {
@@ -83,11 +85,42 @@ const getCountryData = (name: string) => {
   });
 };
 
-export function GlobeComponent({ className, onSelect, selectedCountryId, selectedPlatform }: { className?: string, onSelect: (id: string) => void, selectedCountryId: string | null, selectedPlatform: string | null }) {
+const getMissionData = (name: string) => {
+    const normalizedInput = normalizeName(name);
+    const mappedName = normalizeName(nameMapping[name] || name);
+    return globeMarkers.find(m => {
+        const normalizedMissionName = normalizeName(m.pais);
+        return normalizedMissionName === normalizedInput || normalizedMissionName === mappedName;
+    });
+};
+
+interface GlobeProps {
+    className?: string;
+    onSelect: (id: string) => void;
+    selectedCountryId: string | null;
+    selectedPlatform: string | null;
+    hideIntensity?: boolean;
+}
+
+export function GlobeComponent({ 
+    className, 
+    onSelect, 
+    selectedCountryId, 
+    selectedPlatform,
+    hideIntensity = false 
+}: GlobeProps) {
   const globeEl = useRef<any>();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCountry, setHoveredCountry] = useState<any | null>(null);
   const [features, setFeatures] = useState<any[]>([]);
-  const [isTouring, setIsTouring] = useState(false);
+  const [isTourActive, setIsTourActive] = useState(true);
+  const [activeTourCountryId, setActiveTourCountryId] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Derived data for popup
+  const selectedData = useMemo(() => 
+    countriesData.find(c => c.id === selectedCountryId), 
+  [selectedCountryId]);
 
   useEffect(() => {
     fetch("/world.topojson")
@@ -98,6 +131,28 @@ export function GlobeComponent({ className, onSelect, selectedCountryId, selecte
       });
   }, []);
 
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+
+    if (!isFullscreen) {
+      containerRef.current.requestFullscreen().catch((err) => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // Sync point of view when selectedCountryId changes externally
   useEffect(() => {
     if (selectedCountryId && globeEl.current) {
         const countryData = countriesData.find(c => c.id === selectedCountryId);
@@ -107,81 +162,311 @@ export function GlobeComponent({ className, onSelect, selectedCountryId, selecte
     }
   }, [selectedCountryId]);
 
+  // Country-to-Country Tour Logic
   useEffect(() => {
-    if (!isTouring || !globeEl.current) return;
+    if (!isTourActive || !globeEl.current || features.length === 0) {
+        if (globeEl.current) globeEl.current.controls().autoRotate = false;
+        return;
+    }
+
+    globeEl.current.controls().autoRotate = false;
+
     let currentIndex = 0;
-    const interval = setInterval(() => {
-        const countryData = countriesData[currentIndex % countriesData.length];
-        globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
-        onSelect(countryData.id);
-        const feature = features.find(f => getCountryData(f.properties.name)?.id === countryData.id);
-        setHoveredCountry(feature || null);
+    const tourCountries = countriesData.filter(c => c.volumen > 0 || getMissionData(c.pais));
+    
+    const runTour = () => {
+        if (!isTourActive || hoveredCountry) return; // Don't tour if user is hovering
+        
+        const countryData = tourCountries[currentIndex % tourCountries.length];
+        setActiveTourCountryId(null);
+        globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 1.8 }, 3000);
+        
+        setTimeout(() => {
+            if (isTourActive && !hoveredCountry) {
+                setActiveTourCountryId(countryData.id);
+                onSelect(countryData.id);
+            }
+        }, 3200);
+        
         currentIndex++;
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [isTouring, onSelect, features]);
+    };
+
+    runTour();
+    const interval = setInterval(runTour, 9000);
+
+    return () => {
+        clearInterval(interval);
+    };
+  }, [isTourActive, onSelect, features, hoveredCountry]);
+
+  // Helper to generate tooltip HTML content
+  const getTooltipHtml = (countryId: string, isTour: boolean = false) => {
+    const countryData = countriesData.find(c => c.id === countryId);
+    if (!countryData) return '';
+
+    const dominantPlat = Object.keys(countryData.plataformas).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b);
+    const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
+    const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
+
+    return `
+        <div class="globe-tooltip persistent">
+            <div class="header">
+                <div class="flag-box">
+                    <span class="iso-code">${countryData.id}</span>
+                    <img src="${flagUrl}" class="flag-img" alt="${countryData.pais} flag" />
+                </div>
+                <div>
+                    <p class="country-name">${countryData.pais}</p>
+                    <p class="platform">${iconSvg} ${dominantPlat} dominante</p>
+                </div>
+            </div>
+            <div class="theme">${countryData.tema}</div>
+            <div class="stats">
+                <span class="volume">${countryData.volumen.toLocaleString()} menciones</span>
+                <span class="sentiment">Positivo</span>
+            </div>
+            ${!isTour ? '<div class="footer">Clic para ver detalle completo</div>' : ''}
+        </div>
+    `;
+  };
+
+  const htmlElements = useMemo(() => {
+    const elements = [{ lat: 4.5, lng: -74.3, type: 'hq' }];
+    if (activeTourCountryId && !hoveredCountry) {
+        const c = countriesData.find(c => c.id === activeTourCountryId);
+        if (c) elements.push({ ...c, type: 'tooltip' } as any);
+    }
+    return elements;
+  }, [activeTourCountryId, hoveredCountry]);
 
   return (
-    <div className={className} style={{ position: "relative", width: "100%", height: "100%", display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div 
+        ref={containerRef}
+        className={`${className} ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#03060d]' : ''}`} 
+        style={{ position: isFullscreen ? 'fixed' : 'relative', width: "100%", height: "100%", display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+    >
       <style>{`
         .pulse-container { position: relative; width: 24px; height: 24px; }
         .dot { position: absolute; top: 8px; left: 8px; width: 8px; height: 8px; background-color: #f3b116; border-radius: 50%; box-shadow: 0 0 5px #f3b116; }
         .ring { position: absolute; top: 0px; left: 0px; width: 24px; height: 24px; border: 2px solid #f3b116; border-radius: 50%; animation: pulse 2s infinite; }
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        
+        .globe-tooltip {
+            background: rgba(11, 16, 29, 0.95);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(18, 112, 226, 0.4);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            min-width: 250px;
+            font-family: 'Satoshi', sans-serif;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+        }
+        .globe-tooltip.persistent { 
+            transform: translate(-50%, calc(-100% - 20px));
+            margin: 0;
+            position: absolute;
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -90%); } to { opacity: 1; transform: translate(-50%, calc(-100% - 20px)); } }
+        
+        .globe-tooltip .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .globe-tooltip .flag-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .globe-tooltip .iso-code { font-family: monospace; font-size: 14px; font-weight: 700; color: #94a3b8; }
+        .globe-tooltip .flag-img { width: 24px; height: 16px; object-fit: cover; border-radius: 2px; border: 1px solid rgba(255,255,255,0.1); }
+        .globe-tooltip .country-name { font-size: 18px; font-weight: 700; margin: 0; line-height: 1.2; }
+        .globe-tooltip .platform { font-size: 12px; color: #94a3b8; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+        .globe-tooltip .theme { font-size: 13px; color: #3b82f6; margin: 12px 0; font-weight: 600; line-height: 1.4; border-left: 2px solid #3b82f6; padding-left: 10px; }
+        .globe-tooltip .stats { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; }
+        .globe-tooltip .volume { color: #f3b116; font-weight: 800; font-size: 15px; }
+        .globe-tooltip .sentiment { color: #2eb88a; font-weight: 800; font-size: 13px; text-transform: capitalize; }
+        .globe-tooltip .footer { font-size: 11px; color: #64748b; margin-top: 14px; text-align: center; }
       `}</style>
       
-      <div className="absolute bottom-6 left-6 z-50 bg-[#0b101d]/90 p-4 rounded-xl border border-white/10 text-white text-xs w-48 shadow-2xl">
-        <h4 className="font-bold mb-2">Intensidad de conversación</h4>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.muyAlta}}></span> Muy alta (&gt;75%)</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.alta}}></span> Alta (45&mdash;75%)</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.media}}></span> Media (20&mdash;45%)</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.baja}}></span> Baja (&lt;20%)</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.sinDatos}}></span> Sin datos</div>
+      {isFullscreen && (
+          <div className="absolute top-8 left-0 right-0 text-center z-[100] animate-in fade-in slide-in-from-top-4 duration-1000">
+              <h1 className="text-3xl font-black tracking-[0.2em] text-white uppercase italic opacity-90 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                  Conversación Global CNE Colombia
+              </h1>
+              <div className="w-24 h-0.5 bg-blue-500 mx-auto mt-2 opacity-50"></div>
+          </div>
+      )}
+
+      {!hideIntensity && (
+        <div className="absolute bottom-6 left-6 z-50 bg-[#0b101d]/90 p-4 rounded-xl border border-white/10 text-white text-xs w-48 shadow-2xl">
+            <h4 className="font-bold mb-2 text-slate-300 tracking-tight">Intensidad de conversación</h4>
+            <div className="space-y-1.5">
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.muyAlta}}></span> Muy alta (&gt;75%)</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.alta}}></span> Alta (45&mdash;75%)</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.media}}></span> Media (20&mdash;45%)</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.baja}}></span> Baja (&lt;20%)</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.sinDatos}}></span> Sin datos</div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-white/10 flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-[#f3b116]"></span> Colombia — HQ
+            </div>
         </div>
-        <div className="mt-3 pt-2 border-t border-white/10 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#f3b116]"></span> Colombia — HQ
-        </div>
+      )}
+
+      {/* Floating Controls */}
+      <div className="absolute top-4 right-4 z-[110] flex gap-2">
+        <Button 
+            variant="outline"
+            size="sm"
+            className="bg-[#0b101d] text-white border-white/20 hover:bg-white/5"
+            onClick={toggleFullscreen}
+        >
+            <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} className="mr-2" />
+            {isFullscreen ? "Salir" : "Pantalla Completa"}
+        </Button>
+        <Button 
+            variant="outline"
+            size="sm"
+            className={`bg-[#0b101d] text-white border-white/20 hover:bg-white/5 ${isTourActive ? 'border-blue-500/50 text-blue-400' : ''}`}
+            onClick={() => setIsTourActive(!isTourActive)}
+        >
+            <FontAwesomeIcon icon={isTourActive ? faPause : faPlay} className="mr-2" />
+            {isTourActive ? "Pausar" : "Giro"}
+        </Button>
       </div>
 
-      <Button 
-        variant="outline"
-        className="absolute top-4 right-4 z-50 bg-[#0b101d] text-white border-white/20"
-        onClick={() => setIsTouring(!isTouring)}
-      >
-        {isTouring ? "Detener tour" : "Girar automáticamente"}
-      </Button>
+      {/* Fullscreen Popup Details */}
+      {isFullscreen && selectedData && (
+          <div className="absolute left-6 top-24 bottom-6 w-80 bg-[#0b101d]/95 backdrop-blur-xl border border-white/10 rounded-2xl z-[100] shadow-2xl p-6 overflow-y-auto animate-in fade-in slide-in-from-left-6 duration-500">
+              <div className="flex justify-between items-start mb-6">
+                  <div>
+                      <span className="text-2xl font-black text-slate-500/50 block mb-1">{selectedData.id}</span>
+                      <h2 className="text-2xl font-bold text-white leading-tight">{selectedData.pais}</h2>
+                      <p className="text-xs text-blue-400 mt-1">{selectedData.updateTime}</p>
+                  </div>
+                  <button onClick={() => onSelect('')} className="p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors">
+                      <FontAwesomeIcon icon={faXmark} />
+                  </button>
+              </div>
+
+              <div className="space-y-6">
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Tema Principal</p>
+                      <p className="text-sm font-semibold text-blue-400 leading-snug">{selectedData.tema}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-[#161d2b] p-4 rounded-xl">
+                          <p className="text-2xl font-black text-yellow-500">{selectedData.volumen.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Menciones totales</p>
+                          <div className="flex items-center gap-1.5 mt-2 text-green-500 text-xs font-bold">
+                              <FontAwesomeIcon icon={faArrowTrendUp} />
+                              <span>{selectedData.pctCambio}% crecimiento</span>
+                          </div>
+                      </div>
+                      
+                      <div className="bg-[#161d2b] p-4 rounded-xl">
+                          <div className="flex items-center justify-between mb-2">
+                              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Sentimiento</p>
+                              <span className="text-green-500 font-bold text-xs">Predominante</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                              <span className="text-lg font-black text-green-500 flex items-center gap-2 uppercase tracking-tighter italic">
+                                  Positivo <FontAwesomeIcon icon={faStar} className="text-xs" />
+                              </span>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-3">Distribución</p>
+                      <div className="space-y-3">
+                          {Object.entries(selectedData.plataformas).map(([plat, vol]) => (
+                              <div key={plat} className="space-y-1.5">
+                                  <div className="flex justify-between text-[11px] font-bold">
+                                      <span className="text-slate-300 capitalize">{plat}</span>
+                                      <span className="text-slate-500">{((vol as number / selectedData.volumen) * 100).toFixed(0)}%</span>
+                                  </div>
+                                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-500" style={{ width: `${((vol as number / selectedData.volumen) * 100)}%` }}></div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
+                      <p className="text-[10px] text-blue-400 uppercase font-black tracking-widest mb-2">Resumen Narrativo</p>
+                      <p className="text-xs text-slate-300 leading-relaxed italic">{selectedData.resumen}</p>
+                  </div>
+              </div>
+          </div>
+      )}
 
       <Globe
         ref={globeEl}
+        width={isFullscreen ? undefined : undefined}
+        height={isFullscreen ? undefined : undefined}
         globeImageUrl="/earth_day.jpg"
         bumpImageUrl="/earth_normal.jpg"
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
         
-        htmlElementsData={[{ lat: 4.5, lng: -74.3 }]}
-        htmlElement={() => {
+        htmlElementsData={htmlElements}
+        htmlElement={(d: any) => {
             const el = document.createElement('div');
-            el.innerHTML = '<div class="pulse-container"><div class="ring"></div><div class="dot"></div></div>';
+            if (d.type === 'hq') {
+                el.innerHTML = '<div class="pulse-container"><div class="ring"></div><div class="dot"></div></div>';
+            } else {
+                el.innerHTML = getTooltipHtml(d.id, true); // true = hide footer during tour
+            }
             return el;
         }}
         
         polygonsData={features}
-        polygonLabel={({ properties }: any) => {
+        polygonLabel={(d: any) => {
+            const properties = d.properties;
+            if (hideIntensity) {
+                const mission = getMissionData(properties.name);
+                return mission ? `
+                    <div class="globe-tooltip">
+                        <p class="font-bold text-base mb-0.5">${mission.pais}</p>
+                        <p class="text-xs text-slate-400 mb-1.5">${mission.ciudad}</p>
+                        <p class="font-bold text-[#f3b116] text-xs uppercase tracking-tight">${mission.tipo}</p>
+                        <p class="text-xs text-slate-300 mt-0.5">${mission.count} observadores</p>
+                    </div>
+                ` : `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
+            }
+
             const countryData = getCountryData(properties.name);
-            const dominantPlat = countryData ? Object.keys(countryData.plataformas).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b) : "";
+            if (!countryData) return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
+            
+            const dominantPlat = Object.keys(countryData.plataformas).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b);
             const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-            return countryData ? `
-                <div class="bg-[#0b101d] text-white p-4 rounded-xl border border-white/10 shadow-2xl w-64 text-sm z-50">
-                    <p class="font-bold text-lg flex items-center gap-2">${countryData.pais} <span style="display:inline-flex;">${iconSvg}</span></p>
-                    <p class="text-xs text-blue-400">${countryData.tema}</p>
-                    <p class="font-bold text-yellow-500 mt-2">${countryData.volumen.toLocaleString()} menciones</p>
+            const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
+            
+            return `
+                <div class="globe-tooltip">
+                    <div class="header">
+                        <div class="flag-box">
+                            <span class="iso-code">${countryData.id}</span>
+                            <img src="${flagUrl}" class="flag-img" alt="${countryData.pais} flag" />
+                        </div>
+                        <div>
+                            <p class="country-name">${countryData.pais}</p>
+                            <p class="platform">${iconSvg} ${dominantPlat} dominante</p>
+                        </div>
+                    </div>
+                    <div class="theme">${countryData.tema}</div>
+                    <div class="stats">
+                        <span class="volume">${countryData.volumen.toLocaleString()} menciones</span>
+                        <span class="sentiment">Positivo</span>
+                    </div>
+                    <div class="footer">Clic para ver detalle completo</div>
                 </div>
-            ` : `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
+            `;
         }}
         polygonAltitude={0.005}
         polygonCapColor={(d: any) => {
             const countryData = getCountryData(d.properties.name);
             if (countryData?.id === selectedCountryId) return "#c77dff";
+            if (hideIntensity) return "rgba(18, 112, 226, 0.15)";
             if (countryData) {
                 const volume = selectedPlatform ? (countryData.plataformas as any)[selectedPlatform] || 0 : countryData.volumen;
                 return getVolumeColor(volume);
@@ -191,10 +476,20 @@ export function GlobeComponent({ className, onSelect, selectedCountryId, selecte
         polygonSideColor={() => "rgba(0, 0, 0, 0)"}
         polygonStrokeColor={() => "#444444"}
         polygonStrokeWidth={0.5}
-        onPolygonHover={(d: any) => setHoveredCountry(d)}
+        
+        onPolygonHover={(d: any) => {
+            setHoveredCountry(d);
+            if (d) {
+                setActiveTourCountryId(null);
+            }
+        }}
         onPolygonClick={(d: any) => {
             const countryData = getCountryData(d.properties.name);
-            if (countryData) onSelect(countryData.id);
+            if (countryData) {
+                onSelect(countryData.id);
+                setIsTourActive(false); 
+                setActiveTourCountryId(countryData.id);
+            }
         }}
       />
     </div>
