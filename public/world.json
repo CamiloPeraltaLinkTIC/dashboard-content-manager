@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "CO",
+      "properties": { "name": "Colombia" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-74, 12], [-72, 12], [-72, 10], [-74, 10], [-74, 12]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "AR",
+      "properties": { "name": "Argentina" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-68, -25], [-65, -25], [-65, -30], [-68, -30], [-68, -25]]]
+      }
+    }
+  ]
+}
