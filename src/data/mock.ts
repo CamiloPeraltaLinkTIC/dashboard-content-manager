@@ -19,6 +19,7 @@ export const sidebarItems = [
   { path: "/medios", label: "Conversación en Medios", icon: "Newspaper" },
   { path: "/social", label: "Conversación en Redes", icon: "Share2", badge: "LIVE" },
   { path: "/mapa", label: "Mapa Global", icon: "Globe2", badge: "NEW" },
+  { path: "/admin", label: "Administración", icon: "Settings" },
 ];
 
 // Routes (wouter hash router):

@@ -3,6 +3,7 @@ import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -40,13 +41,15 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col h-screen overflow-hidden">
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="flex flex-col overflow-hidden">
-            <AppHeader />
-            <main className="flex-1 overflow-y-auto">{children}</main>
-          </SidebarInset>
-        </SidebarProvider>
+        <AuthProvider>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset className="flex flex-col overflow-hidden">
+              <AppHeader />
+              <main className="flex-1 overflow-y-auto">{children}</main>
+            </SidebarInset>
+          </SidebarProvider>
+        </AuthProvider>
       </body>
     </html>
   );

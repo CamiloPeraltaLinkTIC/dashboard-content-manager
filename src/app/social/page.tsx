@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { liveFeed, socialProfiles } from "@/data/mock";
-import { faRotate, faHeart, faComment } from "@fortawesome/free-solid-svg-icons";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { faRotate, faHeart, faComment, faSave, faPlus, faTrash, faUpload, faLock } from "@fortawesome/free-solid-svg-icons";
 import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { AdminPopup } from "@/components/admin-popup";
+import { Input } from "@/components/ui/input";
+import * as XLSX from 'xlsx';
 
 const platformConfig: Record<string, { color: string; icon: any; name: string }> = {
   Instagram: { color: "#E1306C", icon: faInstagram, name: "Instagram" },
@@ -33,25 +36,164 @@ const getPlatformConfig = (name: string) => {
 
 export default function SocialPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [feed, setFeed] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [timeAgo, setTimeAgo] = useState<string>("AHORA");
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [pass, setPass] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  const fetchSocialData = async () => {
+    setLoading(true);
+    const { data: pData } = await supabase.from('content_manager_social_profiles').select('*');
+    const { data: fData } = await supabase.from('content_manager_social_feed').select('*').order('id', { ascending: false });
+    
+    if (pData) setProfiles(pData);
+    if (fData) setFeed(fData);
+    setLastFetchTime(new Date());
+    setTimeAgo("AHORA");
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchSocialData();
+  }, []);
+
+  useEffect(() => {
+    if (!lastFetchTime) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diffInMins = Math.floor((now.getTime() - lastFetchTime.getTime()) / 60000);
+      if (diffInMins === 0) setTimeAgo("AHORA");
+      else setTimeAgo(`HACE ${diffInMins} MIN`);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [lastFetchTime]);
+
+  const saveSocialData = async () => {
+    try {
+        // Update Profiles
+        for (const p of profiles) {
+            await supabase.from('content_manager_social_profiles').upsert(p);
+        }
+        // Update Feed (caution: usually feed is large, here we just upsert the ones we have in state)
+        // For simplicity, we just save what's in state
+        for (const post of feed) {
+            const { error } = await supabase.from('content_manager_social_feed').upsert(post);
+        }
+        alert("¡Datos guardados con éxito!");
+        fetchSocialData();
+    } catch (err) {
+        console.error(err);
+        alert("Error al guardar datos");
+    }
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            
+            let updatedProfiles = [...profiles];
+            let updatedFeed = [...feed];
+            let feedsFound = 0;
+            let profilesFound = 0;
+
+            // Iteramos por todas las pestañas del archivo
+            wb.SheetNames.forEach((wsname) => {
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+                if (data.length === 0) return;
+
+                const firstRow = data[0] as any;
+
+                // Detección: Si es pestaña de FEED
+                if (firstRow['Usuario'] || firstRow['usuario'] || firstRow['Texto'] || firstRow['texto']) {
+                    const newFeedData = data.map((row: any) => ({
+                        red: row['Red'] || row['red'] || 'X',
+                        usuario: row['Usuario'] || row['usuario'] || 'Anónimo',
+                        tiempo: row['Tiempo'] || row['tiempo'] || 'Ahora',
+                        texto: row['Texto'] || row['texto'] || '',
+                        tipo: (row['Tipo'] || row['tipo'] || 'neutral').toLowerCase()
+                    }));
+                    updatedFeed = [...newFeedData, ...updatedFeed].slice(0, 50);
+                    feedsFound += newFeedData.length;
+                } 
+                // Detección: Si es pestaña de PERFILES
+                else if (firstRow['Seguidores'] || firstRow['seguidores'] || firstRow['ID'] || firstRow['id']) {
+                    data.forEach((row: any) => {
+                        const id = (row['ID'] || row['id'] || '').toLowerCase().trim();
+                        if (!id) return;
+                        
+                        const idx = updatedProfiles.findIndex(p => p.id === id);
+                        const obj = {
+                            id,
+                            seguidores: (row['Seguidores'] || row['seguidores'] || '0').toString(),
+                            interacciones: parseInt(row['Interacciones'] || row['interacciones']) || 0,
+                            alcance: (row['Alcance'] || row['alcance'] || '0').toString(),
+                            posts: parseInt(row['Posts'] || row['posts']) || 0,
+                            sentimiento: parseInt(row['Sentimiento'] || row['sentimiento']) || 50,
+                            tendencia: row['Tendencia'] ? (typeof row['Tendencia'] === 'string' ? JSON.parse(row['Tendencia']) : row['Tendencia']) : [],
+                            top_posts: row['TopPosts'] ? (typeof row['TopPosts'] === 'string' ? JSON.parse(row['TopPosts']) : row['TopPosts']) : []
+                        };
+                        if (idx !== -1) updatedProfiles[idx] = obj;
+                        else updatedProfiles.push(obj);
+                    });
+                    profilesFound++;
+                }
+            });
+
+            if (feedsFound > 0) setFeed(updatedFeed);
+            if (profilesFound > 0) setProfiles(updatedProfiles);
+
+            alert(`Importación finalizada:\n- ${profilesFound} redes actualizadas\n- ${feedsFound} entradas de feed añadidas`);
+            
+        } catch(err) {
+            console.error(err);
+            alert("Error procesando Excel. Revisa que el formato de las columnas sea correcto.");
+        }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   const filteredFeed = useMemo(() => {
     return selectedPlatform 
-        ? liveFeed.filter(post => post.red.toLowerCase() === selectedPlatform.toLowerCase())
-        : liveFeed;
-  }, [selectedPlatform]);
+        ? feed.filter(post => post.red.toLowerCase() === selectedPlatform.toLowerCase())
+        : feed;
+  }, [selectedPlatform, feed]);
+
+  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Inteligencia Social...</div>;
 
   return (
     <div className="min-h-screen bg-[#03060d] text-white p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Conversación en Redes Sociales</h1>
-        <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <div className="flex gap-2 mb-2">
+            <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20 uppercase font-bold tracking-tight">ESTRATEGIA DIGITAL</span>
+            <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-white/10 uppercase">ACTUALIZADO {timeAgo}</span>
+          </div>
+          <h1 className="text-3xl font-bold mb-1">Conversación en Redes Sociales</h1>
+          <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchSocialData} className="bg-[#0b101d] border-white/10 text-white">
+            <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/> Actualizar
+        </Button>
       </div>
 
       {/* Platform Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {Object.entries(platformConfig).map(([key, p]) => {
-              const stats = (socialProfiles as any)[key.toLowerCase()];
+              const stats = profiles.find(pr => pr.id === key.toLowerCase()) || {
+                  seguidores: "0", sentimiento: 0, interacciones: 0, alcance: "0", posts: 0, tendencia: [], top_posts: []
+              };
               return (
                 <Card key={key} className="bg-[#0b101d] border border-white/5 p-4 rounded-2xl">
                     <div className="flex justify-between items-start mb-4">
@@ -67,23 +209,23 @@ export default function SocialPage() {
                         <span className="text-green-500 text-xs">● {stats.sentimiento}% pos</span>
                     </div>
                     <div className="flex justify-between text-center mb-4">
-                        <div><p className="text-lg font-bold">{stats.interacciones.toLocaleString()}</p><p className="text-[10px] text-slate-400">Interacciones</p></div>
+                        <div><p className="text-lg font-bold">{stats.interacciones >= 1000 ? (stats.interacciones/1000).toFixed(1)+'K' : stats.interacciones}</p><p className="text-[10px] text-slate-400">Interacciones</p></div>
                         <div><p className="text-lg font-bold">{stats.alcance}</p><p className="text-[10px] text-slate-400">Alcance</p></div>
                         <div><p className="text-lg font-bold">{stats.posts}</p><p className="text-[10px] text-slate-400">Posts</p></div>
                     </div>
                     <div className="h-16 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={stats.tendencia}>
+                            <AreaChart data={stats.tendencia || []}>
                                 <Area type="monotone" dataKey="mentions" stroke={p.color} fill={p.color} fillOpacity={0.1} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                     <div className="text-xs">
                         <p className="text-slate-400 mb-1">Top post</p>
-                        <p className="font-semibold mb-2 line-clamp-2">{stats.topPosts[0]?.texto}</p>
+                        <p className="font-semibold mb-2 line-clamp-2">{stats.top_posts?.[0]?.texto || 'Sin datos'}</p>
                         <div className="flex gap-3 text-slate-500 text-[10px]">
-                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faHeart} className="w-3 h-3"/>{stats.topPosts[0]?.likes}</span>
-                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faComment} className="w-3 h-3"/>{stats.topPosts[0]?.comments}</span>
+                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faHeart} className="w-3 h-3 text-red-500/50"/>{stats.top_posts?.[0]?.likes || 0}</span>
+                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faComment} className="w-3 h-3 text-blue-500/50"/>{stats.top_posts?.[0]?.comments || 0}</span>
                         </div>
                     </div>
                 </Card>
@@ -92,14 +234,13 @@ export default function SocialPage() {
       </div>
 
       {/* Feed */}
-      <div className="bg-[#0b101d] border border-white/5 rounded-2xl p-6">
+      <div className="bg-[#0b101d] border border-white/5 rounded-2xl p-6 mb-20">
         <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
                 <span className="text-yellow-500 font-bold text-xl">⚡</span>
                 <h1 className="text-xl font-bold">Feed en Vivo</h1>
                 <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● EN TIEMPO REAL</span>
             </div>
-            <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white"><FontAwesomeIcon icon={faRotate} className="mr-2"/> Actualizar</Button>
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -119,7 +260,7 @@ export default function SocialPage() {
             {filteredFeed.map((post) => {
                 const p = getPlatformConfig(post.red);
                 return (
-                    <div key={post.id} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4">
+                    <div key={post.id} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group">
                         <div className="p-2 rounded-lg bg-white/5" style={{ color: p?.color || 'white' }}>
                             <BrandIcon name={post.red} className="w-5 h-5"/>
                         </div>
@@ -127,8 +268,8 @@ export default function SocialPage() {
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="font-bold text-sm">@{post.usuario}</span>
                                 <span className="text-xs text-slate-500">{post.tiempo}</span>
-                                <span className={`text-[10px] font-bold ${post.tipo === 'positivo' ? 'text-green-500' : post.tipo === 'negativo' ? 'text-red-500' : 'text-yellow-500'}`}>
-                                    {post.tipo.charAt(0).toUpperCase() + post.tipo.slice(1)}
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${post.tipo === 'positivo' ? 'text-green-500' : post.tipo === 'negativo' ? 'text-red-500' : 'text-yellow-500'}`}>
+                                    {post.tipo}
                                 </span>
                             </div>
                             <p className="text-sm text-slate-300">{post.texto}</p>
@@ -139,6 +280,136 @@ export default function SocialPage() {
             })}
         </div>
       </div>
+
+      <AdminPopup title="Editor de Inteligencia Social">
+            <div className="space-y-6">
+                <div className="flex justify-between items-center mb-6 bg-[#161d2b] p-4 rounded-xl border border-white/5">
+                    <div>
+                        <h3 className="font-bold">Panel de Control</h3>
+                        <p className="text-xs text-slate-400">Gestiona métricas y publicaciones en tiempo real.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="relative cursor-pointer bg-green-600/20 text-green-400 border-green-500/20">
+                            <FontAwesomeIcon icon={faUpload} className="mr-2" /> Excel
+                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleExcelUpload} accept=".xlsx,.xls" />
+                        </Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 font-bold" onClick={saveSocialData}>
+                            <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todos
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8">
+                    <div>
+                        <h3 className="text-blue-400 font-black mb-4 uppercase text-xs tracking-widest flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Métricas por Red
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {profiles.map((p, idx) => (
+                                <div key={p.id} className="bg-white/5 p-4 rounded-xl space-y-3 border border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <BrandIcon name={p.id} className="w-4 h-4" />
+                                        <span className="font-bold uppercase text-xs">{p.id}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Seguidores</label>
+                                            <Input value={p.seguidores} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].seguidores = e.target.value;
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Sentimiento %</label>
+                                            <Input type="number" value={p.sentimiento} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].sentimiento = parseInt(e.target.value);
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Interacciones</label>
+                                            <Input type="number" value={p.interacciones} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].interacciones = parseInt(e.target.value);
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Alcance</label>
+                                            <Input value={p.alcance} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].alcance = e.target.value;
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-yellow-500 font-black uppercase text-xs tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-yellow-500"></span> Feed de Mensajes
+                            </h3>
+                            <Button size="sm" variant="ghost" className="text-[10px] uppercase font-black text-slate-400 hover:text-white" onClick={() => setFeed([{ red: 'X', usuario: 'Nuevo', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])}>
+                                <FontAwesomeIcon icon={faPlus} className="mr-2" /> Agregar Post
+                            </Button>
+                        </div>
+                        <div className="space-y-2">
+                            {feed.map((post, idx) => (
+                                <div key={idx} className="bg-white/5 p-3 rounded-xl flex gap-3 items-start border border-white/5">
+                                    <select className="bg-[#161d2b] border-none text-[10px] font-bold rounded p-1" value={post.red} onChange={(e) => {
+                                        const news = [...feed];
+                                        news[idx].red = e.target.value;
+                                        setFeed(news);
+                                    }}>
+                                        <option value="X">X</option>
+                                        <option value="Instagram">IG</option>
+                                        <option value="Facebook">FB</option>
+                                        <option value="TikTok">TT</option>
+                                    </select>
+                                    <div className="flex-1 space-y-2">
+                                        <div className="flex gap-2">
+                                            <Input value={post.usuario} placeholder="Usuario" onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].usuario = e.target.value;
+                                                setFeed(news);
+                                            }} className="bg-[#05080f] border-white/5 h-7 text-[10px] w-1/3" />
+                                            <Input value={post.tiempo} placeholder="Tiempo" onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].tiempo = e.target.value;
+                                                setFeed(news);
+                                            }} className="bg-[#05080f] border-white/5 h-7 text-[10px] w-1/3" />
+                                            <select className="bg-[#05080f] border-white/5 h-7 text-[10px] rounded-md px-2 w-1/3" value={post.tipo} onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].tipo = e.target.value;
+                                                setFeed(news);
+                                            }}>
+                                                <option value="positivo">Positivo</option>
+                                                <option value="neutral">Neutral</option>
+                                                <option value="negativo">Negativo</option>
+                                            </select>
+                                        </div>
+                                        <textarea className="w-full bg-[#05080f] border-white/5 rounded-md p-2 text-xs focus:outline-none" value={post.texto} rows={2} onChange={(e) => {
+                                            const news = [...feed];
+                                            news[idx].texto = e.target.value;
+                                            setFeed(news);
+                                        }} />
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-400 p-1 h-auto" onClick={() => setFeed(feed.filter((_, i) => i !== idx))}>
+                                        <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+      </AdminPopup>
     </div>
   );
 }

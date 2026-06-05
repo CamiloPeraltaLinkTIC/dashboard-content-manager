@@ -33,13 +33,13 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 const navItems = [
+  { path: "/mapa", label: "Mapa Global", icon: "Globe2", badge: "NEW", badgeBg: "hsl(213 60% 18%)", badgeText: "hsl(213 85% 62%)" },
   { path: "/elecciones", label: "Elecciones Presiden...", icon: "Vote", badge: "HOT", badgeBg: "#e05a33", badgeText: "#fff" },
   { path: "/testigos", label: "Testigos Electorales", icon: "ShieldCheck" },
   { path: "/legitimidad", label: "Legitimidad y Transparencia", icon: "Scale" },
   { path: "/quiroz", label: "Cristian Quiroz", icon: "UserRound" },
   { path: "/medios", label: "Conversacion en Medios", icon: "Newspaper" },
-  { path: "/social", label: "Conversacion en Re...", icon: "Share2", badge: "LIVE", badgeBg: "#2eb88a", badgeText: "#fff" },
-  { path: "/mapa", label: "Mapa Global", icon: "Globe2", badge: "NEW", badgeBg: "hsl(213 60% 18%)", badgeText: "hsl(213 85% 62%)" },
+  { path: "/social", label: "Conversacion en Re...", icon: "Share2", badge: "LIVE", badgeBg: "#2eb88a", badgeText: "#fff" }
 ];
 
 export function AppSidebar() {

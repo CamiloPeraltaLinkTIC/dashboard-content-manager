@@ -1,13 +1,16 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
-import { countriesData } from "@/data/mock";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
+import { AdminPopup } from "@/components/admin-popup";
+import { Input } from "@/components/ui/input";
+import * as XLSX from "xlsx";
 import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
-import { faMagnifyingGlass, faRotate, faGlobe, faArrowTrendUp, faStar } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComponent), {
@@ -48,25 +51,389 @@ const platformColors: Record<string, string> = {
   TikTok: "rgb(105, 201, 208)",
 };
 
-const mapaKpis = [
-  { label: "Menciones globales", value: "498.2K", delta: "+12.4%", trend: "up" as const },
-  { label: "Paises activos", value: "27", delta: "+3", trend: "up" as const },
-  { label: "Sentimiento global", value: "58%", delta: "+4pp", trend: "up" as const },
-  { label: "Pais mas activo", value: "Colombia", delta: "187.4K", trend: "up" as const },
-];
+// Static KPIs removed, now calculated dynamically inside the component
+
+const getEmojiFlag = (iso: string) => {
+    if (!iso || iso.length !== 2) return '🌍';
+    return iso.toUpperCase().replace(/./g, char => String.fromCodePoint(char.charCodeAt(0) + 127397));
+};
+
+const countryCoordinates: Record<string, { lat: number, lng: number }> = {
+    'CO': { lat: 4.5709, lng: -74.2973 },
+    'US': { lat: 37.0902, lng: -95.7129 },
+    'ES': { lat: 40.4637, lng: -3.7492 },
+    'MX': { lat: 23.6345, lng: -102.5528 },
+    'AR': { lat: -38.4161, lng: -63.6167 },
+    'BR': { lat: -14.2350, lng: -51.9253 },
+    'VE': { lat: 6.4238, lng: -66.5897 },
+    'CL': { lat: -35.6751, lng: -71.5430 },
+    'PE': { lat: -9.1900, lng: -75.0152 },
+    'EC': { lat: -1.8312, lng: -78.1834 },
+    'PA': { lat: 8.5380, lng: -80.7821 },
+    'DE': { lat: 51.1657, lng: 10.4515 },
+    'FR': { lat: 46.2276, lng: 2.2137 },
+    'IT': { lat: 41.8719, lng: 12.5674 },
+    'GB': { lat: 55.3781, lng: -3.4360 },
+    'CA': { lat: 56.1304, lng: -106.3468 },
+    'RU': { lat: 61.5240, lng: 105.3188 },
+    'CN': { lat: 35.8617, lng: 104.1954 },
+    'JP': { lat: 36.2048, lng: 138.2529 },
+    'BO': { lat: -16.2902, lng: -63.5887 },
+    'UY': { lat: -32.5228, lng: -55.7658 },
+    'PY': { lat: -23.4425, lng: -58.4438 },
+    'CU': { lat: 21.5218, lng: -77.7812 },
+    'DO': { lat: 18.7357, lng: -70.1627 },
+    'HN': { lat: 15.2000, lng: -86.2419 },
+    'SV': { lat: 13.7942, lng: -88.8965 },
+    'NI': { lat: 12.8654, lng: -85.2072 },
+    'CR': { lat: 9.7489, lng: -83.7534 },
+    'GT': { lat: 15.7835, lng: -90.2308 }
+};
+
+const countryNameToIso: Record<string, string> = {
+    'colombia': 'CO', 'estados unidos': 'US', 'españa': 'ES', 'mexico': 'MX', 'méxico': 'MX',
+    'argentina': 'AR', 'brasil': 'BR', 'venezuela': 'VE', 'chile': 'CL', 'peru': 'PE', 'perú': 'PE',
+    'ecuador': 'EC', 'panama': 'PA', 'panamá': 'PA', 'alemania': 'DE', 'francia': 'FR', 'italia': 'IT',
+    'reino unido': 'GB', 'inglaterra': 'GB', 'canada': 'CA', 'canadá': 'CA', 'rusia': 'RU', 'china': 'CN',
+    'japon': 'JP', 'japón': 'JP', 'bolivia': 'BO', 'uruguay': 'UY', 'paraguay': 'PY', 'cuba': 'CU',
+    'republica dominicana': 'DO', 'república dominicana': 'DO', 'honduras': 'HN', 'el salvador': 'SV',
+    'nicaragua': 'NI', 'costa rica': 'CR', 'guatemala': 'GT', 'suiza': 'CH',
+    'portugal': 'PT', 'australia': 'AU', 'turquia': 'TR', 'turquía': 'TR', 'india': 'IN',
+    'corea del sur': 'KR', 'sudafrica': 'ZA', 'sudáfrica': 'ZA', 'nigeria': 'NG',
+    'marruecos': 'MA', 'egipto': 'EG', 'polonia': 'PL', 'holanda': 'NL', 'países bajos': 'NL'
+};
 
 export default function MapaPage() {
   const [selected, setSelected] = useState<string | null>("CO");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [countriesData, setCountriesData] = useState<any[]>([]);
+  const [globeMarkers, setGlobeMarkers] = useState<any[]>([]);
+  const [loadingDb, setLoadingDb] = useState(true);
+  const [editingCountryId, setEditingCountryId] = useState<string | null>(null);
+  const [rawHashtags, setRawHashtags] = useState<string>('');
+  const [rawKeywords, setRawKeywords] = useState<string>('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [timeAgo, setTimeAgo] = useState<string>("AHORA");
+
+  useEffect(() => {
+    fetchMapData();
+  }, []);
+
+  const fetchMapData = async () => {
+    setLoadingDb(true);
+    const { data: countries } = await supabase.from('content_manager_mapa_countries').select('*');
+    const { data: markers } = await supabase.from('content_manager_globe_markers').select('*');
+    if (countries) {
+        const formattedC = countries.map(c => ({
+            ...c,
+            // Auto-fill missing coordinates from local dict
+            lat: c.lat || countryCoordinates[c.id]?.lat || 0,
+            lng: c.lng || countryCoordinates[c.id]?.lng || 0,
+            emoji: c.emoji || getEmojiFlag(c.id),
+            sentimientoPct: c.sentimiento_pct,
+            plataformaDominante: c.plataforma_dominante,
+            pctCambio: c.pct_cambio,
+            topHashtags: c.top_hashtags,
+            updateTime: c.update_time
+        }));
+        setCountriesData(formattedC);
+    }
+    if (markers) setGlobeMarkers(markers);
+    setLastFetchTime(new Date());
+    setTimeAgo("AHORA");
+    setLoadingDb(false);
+  };
+
+  useEffect(() => {
+    if (!lastFetchTime) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diffInMins = Math.floor((now.getTime() - lastFetchTime.getTime()) / 60000);
+      if (diffInMins === 0) setTimeAgo("AHORA");
+      else setTimeAgo(`HACE ${diffInMins} MIN`);
+    }, 30000); // Check every 30s for better responsiveness
+    return () => clearInterval(interval);
+  }, [lastFetchTime]);
   
+  const lookupCountryByName = async (id: string, name: string) => {
+    if (!name || name.length < 3) return;
+    setLookingUp(true);
+    try {
+        const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(name)}?fields=cca2,latlng,flag,name,translations`);
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+        if (!data || data.length === 0) throw new Error('Empty');
+        const match = data.find((c: any) =>
+            c.translations?.spa?.common?.toLowerCase() === name.toLowerCase() ||
+            c.name?.common?.toLowerCase() === name.toLowerCase()
+        ) || data[0];
+        const iso = match.cca2;
+        const lat = match.latlng?.[0] ?? 0;
+        const lng = match.latlng?.[1] ?? 0;
+        const emoji = match.flag || getEmojiFlag(iso);
+        setCountriesData(prev => prev.map(c => c.id !== id ? c : { ...c, id: iso, emoji, lat, lng }));
+        if (editingCountryId === id) setEditingCountryId(iso);
+    } catch {
+        // silently fail
+    } finally {
+        setLookingUp(false);
+    }
+  };
+
+  const repairAllCoordinates = async () => {
+    setLookingUp(true);
+    try {
+        const missing = countriesData.filter(c => !c.lat && !c.lng);
+        let repaired = [...countriesData];
+        for (const country of missing) {
+            try {
+                // Look up by ISO code (alpha2) — much more reliable than name
+                const res = await fetch(`https://restcountries.com/v3.1/alpha/${country.id}?fields=cca2,latlng,flag,name`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                const iso = data.cca2 || country.id;
+                const lat = data.latlng?.[0] ?? countryCoordinates[iso]?.lat ?? 0;
+                const lng = data.latlng?.[1] ?? countryCoordinates[iso]?.lng ?? 0;
+                const emoji = data.flag || getEmojiFlag(iso);
+                repaired = repaired.map(c => c.id === country.id ? { ...c, lat, lng, emoji } : c);
+                // Save to DB immediately
+                await supabase.from('content_manager_mapa_countries').update({ lat, lng, emoji }).eq('id', country.id);
+            } catch {
+                continue;
+            }
+        }
+        setCountriesData(repaired);
+        alert(`✅ Coordenadas reparadas para ${missing.length} países.`);
+    } finally {
+        setLookingUp(false);
+    }
+  };
+
+  const handleCountryChange = (id: string, field: string, value: any) => {
+    if (field === 'id' && editingCountryId === id) {
+        setEditingCountryId(value);
+    }
+    
+    setCountriesData(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        
+        const newC = { ...c, [field]: value };
+        
+        // Auto-detect if User types country name
+        if (field === 'pais') {
+            const normalizedName = value.toLowerCase().trim();
+            const isoMatched = countryNameToIso[normalizedName];
+            if (isoMatched) {
+                newC.id = isoMatched;
+                newC.emoji = getEmojiFlag(isoMatched);
+                if (countryCoordinates[isoMatched]) {
+                    newC.lat = countryCoordinates[isoMatched].lat;
+                    newC.lng = countryCoordinates[isoMatched].lng;
+                }
+                if (editingCountryId === id) {
+                    setEditingCountryId(isoMatched); // keep editor open on auto-iso change
+                }
+            }
+        }
+        
+        // Auto-detect Emoji and Coordinates if ID changes directly
+        if (field === 'id' && value.length === 2 && value === value.toUpperCase()) {
+            newC.emoji = getEmojiFlag(value);
+            if (countryCoordinates[value]) {
+                newC.lat = countryCoordinates[value].lat;
+                newC.lng = countryCoordinates[value].lng;
+            }
+        }
+        
+        return newC;
+    }));
+  };
+
+  const handlePlatformChange = (id: string, platform: string, value: string) => {
+    setCountriesData(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        const newPlats = { ...(c.plataformas || {}), [platform]: parseInt(value) || 0 };
+        // auto update total volume
+        const total = Object.values(newPlats).reduce((acc: any, val: any) => acc + val, 0);
+        return { ...c, plataformas: newPlats, volumen: total };
+    }));
+  };
+  
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+            
+            let updated = [...countriesData];
+            let addedCount = 0;
+            let updatedCount = 0;
+
+            data.forEach((row: any) => {
+                const id = (row['ID'] || row['id'] || '').toString().toUpperCase().trim();
+                if (!id || id.length !== 2) return;
+
+                const idx = updated.findIndex(c => c.id === id);
+                const existing = idx !== -1 ? updated[idx] : null;
+
+                // Platform data
+                const tiktokVol = parseInt(row['TikTok'] || row['tiktok']) || 0;
+                const xVol = parseInt(row['X'] || row['x'] || row['Twitter'] || row['twitter']) || 0;
+                const instaVol = parseInt(row['Instagram'] || row['instagram']) || 0;
+                const fbVol = parseInt(row['Facebook'] || row['facebook']) || 0;
+
+                const newPlats = {
+                    TikTok: tiktokVol || (existing?.plataformas?.TikTok || 0),
+                    X: xVol || (existing?.plataformas?.X || 0),
+                    Instagram: instaVol || (existing?.plataformas?.Instagram || 0),
+                    Facebook: fbVol || (existing?.plataformas?.Facebook || 0)
+                };
+
+                // Auto-calculate dominant platform
+                const platformsArr = Object.entries(newPlats) as [string, number][];
+                const dominantPlatform = platformsArr.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+
+                const totalVolFromCols = platformsArr.reduce((a, [_, v]) => a + v, 0);
+                const totalVol = totalVolFromCols || parseInt(row['Volumen'] || row['volumen']) || (existing?.volumen || 0);
+
+                // Sentiment data
+                const pos = parseInt(row['Positivo'] || row['positivo']);
+                const neu = parseInt(row['Neutral'] || row['neutral']);
+                const neg = parseInt(row['Negativo'] || row['negativo']);
+
+                const newSentimentPct = {
+                    positivo: !isNaN(pos) ? pos : (existing?.sentimientoPct?.positivo || 33),
+                    neutral: !isNaN(neu) ? neu : (existing?.sentimientoPct?.neutral || 33),
+                    negativo: !isNaN(neg) ? neg : (existing?.sentimientoPct?.negativo || 34),
+                };
+
+                const countryObj = {
+                    id,
+                    pais: row['Pais'] || row['pais'] || row['Nombre'] || (existing?.pais || 'Nuevo País'),
+                    tema: row['Tema'] || row['tema'] || (existing?.tema || 'Sin definir'),
+                    volumen: totalVol,
+                    plataformas: newPlats,
+                    plataformaDominante: row['PlataformaDominante'] || row['plataforma_dominante'] || dominantPlatform,
+                    sentimiento: (row['Sentimiento'] || row['sentimiento'] || existing?.sentimiento || 'neutral').toLowerCase(),
+                    sentimientoPct: newSentimentPct,
+                    tendencia: row['Tendencia'] || row['tendencia'] || existing?.tendencia || 'estable',
+                    pctCambio: parseFloat(row['PctCambio'] || row['pct_cambio'] || existing?.pctCambio || 0),
+                    resumen: row['Resumen'] || row['resumen'] || existing?.resumen || '',
+                    topHashtags: row['Hashtags'] || row['hashtags'] ? (row['Hashtags'] || row['hashtags']).toString().split(',').map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.topHashtags || []),
+                    keywords: row['Keywords'] || row['keywords'] ? (row['Keywords'] || row['keywords']).toString().split(',').map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.keywords || []),
+                    lat: parseFloat(row['Lat'] || row['lat']) || (existing?.lat || countryCoordinates[id]?.lat || 0),
+                    lng: parseFloat(row['Lng'] || row['lng']) || (existing?.lng || countryCoordinates[id]?.lng || 0),
+                    emoji: existing?.emoji || getEmojiFlag(id),
+                    updateTime: row['UpdateTime'] || row['update_time'] || 'Sincronizado'
+                };
+
+                if (idx !== -1) {
+                    updated[idx] = countryObj;
+                    updatedCount++;
+                } else {
+                    updated.push(countryObj);
+                    addedCount++;
+                }
+            });
+
+            setCountriesData(updated);
+            alert(`✅ Excel procesado con éxito.\n\nCampos detectados: ID, País, Volumen, Plataformas (X, TikTok, FB, IG), Sentimiento (Pos, Neu, Neg), Tendencia, Resumen, Hashtags y Palabras Clave.\n\n- Países actualizados: ${updatedCount}\n- Países nuevos: ${addedCount}`);
+        } catch(err) {
+            console.error(err);
+            alert("❌ Error procesando Excel. Verifica los nombres de las columnas.");
+        }
+    };
+    reader.readAsBinaryString(file);
+  };
+  
+  const handleArrayChange = (id: string, field: string, value: string) => {
+    const arr = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    handleCountryChange(id, field, arr);
+  };
+
+  const handleSentimentPctChange = (id: string, type: 'positivo' | 'neutral' | 'negativo', value: string) => {
+    setCountriesData(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        const newPct = { ...(c.sentimientoPct || { positivo: 0, neutral: 0, negativo: 0 }), [type]: parseInt(value) || 0 };
+        return { ...c, sentimientoPct: newPct };
+    }));
+  };
+
+  const saveMapData = async () => {
+    try {
+        setLoadingDb(true);
+        for (const c of countriesData) {
+            // If we're upserting, we need all required DB columns or the mapped ones
+            const updateData = {
+                id: c.id,
+                pais: c.pais,
+                emoji: c.emoji || '🌍',
+                lat: c.lat || 0,
+                lng: c.lng || 0,
+                tema: c.tema || 'Nuevo',
+                keywords: c.keywords || [],
+                sentimiento: c.sentimiento,
+                sentimiento_pct: c.sentimientoPct || { positivo: 33, neutral: 33, negativo: 33 },
+                volumen: parseInt((c.volumen || 0).toString()),
+                plataforma_dominante: c.plataformaDominante || 'X',
+                plataformas: c.plataformas || { X: 0 },
+                resumen: c.resumen || '',
+                tendencia: c.tendencia || 'estable',
+                pct_cambio: parseFloat((c.pctCambio || 0).toString()),
+                top_hashtags: c.topHashtags || [],
+                update_time: c.updateTime || 'hace poco'
+            };
+            await supabase.from('content_manager_mapa_countries').upsert(updateData, { onConflict: 'id' });
+        }
+        alert("Datos del mapa guardados exitosamente!");
+        fetchMapData();
+    } catch(err) {
+        console.error(err);
+        alert("Error al guardar.");
+    } finally {
+        setLoadingDb(false);
+    }
+  };
+
+  const addNewCountry = () => {
+    const newId = `TEMP${Math.floor(Math.random() * 100)}`;
+    setCountriesData([{
+        id: newId,
+        pais: 'Nuevo País',
+        emoji: '🌍',
+        lat: 0,
+        lng: 0,
+        tema: 'Sin definir',
+        keywords: [],
+        sentimiento: 'neutral',
+        sentimientoPct: { positivo: 33, neutral: 33, negativo: 33 },
+        volumen: 0,
+        plataformaDominante: 'X',
+        plataformas: { X: 0 },
+        resumen: '',
+        tendencia: 'estable',
+        pctCambio: 0,
+        topHashtags: [],
+        updateTime: 'hace poco'
+    }, ...countriesData]);
+  };
+
   const country = useMemo(() => {
       const c = countriesData.find((c) => c.id === selected);
       if (!c) return null;
       if (!selectedPlatform) return { ...c };
       const platformVol = (c.plataformas as any)[selectedPlatform] || 0;
       return { ...c, volumen: platformVol };
-  }, [selected, selectedPlatform]);
+  }, [selected, selectedPlatform, countriesData]);
 
   const sortedCountries = useMemo(() => {
     let data = [...countriesData];
@@ -77,8 +444,96 @@ export default function MapaPage() {
         const q = searchQuery.toLowerCase();
         data = data.filter(c => c.pais.toLowerCase().includes(q) || c.tema.toLowerCase().includes(q));
     }
-    return data.sort((a, b) => b.volumen - a.volumen);
-  }, [selectedPlatform, searchQuery]);
+    return data.sort((a, b) => {
+        const volA = selectedPlatform ? (a.plataformas as any)[selectedPlatform] || 0 : a.volumen;
+        const volB = selectedPlatform ? (b.plataformas as any)[selectedPlatform] || 0 : b.volumen;
+        return volB - volA;
+    });
+  }, [selectedPlatform, searchQuery, countriesData]);
+
+  const maxVolume = useMemo(() => {
+    if (countriesData.length === 0) return 1;
+    return Math.max(...countriesData.map(c => 
+      selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen
+    ), 1);
+  }, [countriesData, selectedPlatform]);
+
+  const dynamicKpis = useMemo(() => {
+    if (!countriesData || countriesData.length === 0) {
+        return [
+            { label: "Menciones globales", value: "0", delta: "0%", trend: "neutral" as const },
+            { label: "Paises activos", value: "0", delta: null, trend: "neutral" as const },
+            { label: "Sentimiento positivo", value: "0%", delta: null, trend: "neutral" as const },
+            { label: "Pais mas activo", value: "---", delta: "0", trend: "neutral" as const },
+        ];
+    }
+
+    const totalMentions = countriesData.reduce((acc, c) => acc + (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen), 0);
+    const activeCountries = countriesData.filter(c => (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen) > 0).length;
+    
+    // Weighted Sentiment and Pct Cambio
+    let weightedPos = 0;
+    let weightedPct = 0;
+    let totalVolForSentiment = 0;
+    
+    countriesData.forEach(c => {
+        const vol = selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen;
+        if (vol > 0) {
+            if (c.sentimientoPct) {
+                weightedPos += (c.sentimientoPct.positivo || 0) * vol;
+                totalVolForSentiment += vol;
+            }
+            weightedPct += (c.pct_cambio || 0) * vol;
+        }
+    });
+
+    const avgSentiment = totalVolForSentiment > 0 ? Math.round(weightedPos / totalVolForSentiment) : 0;
+    const avgPct = totalMentions > 0 ? (weightedPct / totalMentions).toFixed(1) : "0";
+
+    // Most active
+    const sorted = [...countriesData].sort((a, b) => {
+        const vA = selectedPlatform ? (a.plataformas as any)[selectedPlatform] || 0 : a.volumen;
+        const vB = selectedPlatform ? (b.plataformas as any)[selectedPlatform] || 0 : b.volumen;
+        return vB - vA;
+    });
+    const topCountry = sorted[0];
+    const topVol = topCountry ? (selectedPlatform ? (topCountry.plataformas as any)[selectedPlatform] || 0 : topCountry.volumen) : 0;
+
+    const format = (v: number) => {
+        if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+        if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
+        return v.toString();
+    };
+
+    return [
+        { 
+            label: "Menciones globales", 
+            value: format(totalMentions), 
+            delta: `${parseFloat(avgPct) >= 0 ? '+' : ''}${avgPct}%`, 
+            trend: parseFloat(avgPct) >= 0 ? "up" as const : "down" as const 
+        },
+        { 
+            label: "Países activos", 
+            value: activeCountries.toString(), 
+            delta: null, 
+            trend: "up" as const 
+        },
+        { 
+            label: "Sentimiento positivo", 
+            value: `${avgSentiment}%`, 
+            delta: null, 
+            trend: avgSentiment > 50 ? "up" as const : "down" as const 
+        },
+        { 
+            label: "País más activo", 
+            value: topCountry ? topCountry.pais : "---", 
+            delta: format(topVol), 
+            trend: "up" as const 
+        },
+    ];
+  }, [countriesData, selectedPlatform]);
+
+  if (loadingDb) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center">Cargando base de datos global...</div>;
 
   return (
     <div className="h-screen flex flex-col p-6 gap-6 overflow-y-auto bg-[#03060d] text-white">
@@ -86,14 +541,14 @@ export default function MapaPage() {
         <div className="flex gap-2">
             <span className="bg-[#1e293b] text-blue-400 text-xs px-2 py-1 rounded-full border border-blue-500/20">🌐 MAPA GLOBAL</span>
             <span className="bg-[#0f291e] text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/20">● EN TIEMPO REAL</span>
-            <span className="bg-[#1e293b] text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-500/20">ACTUALIZADO HACE 3 MIN</span>
+            <span className="bg-[#1e293b] text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-500/20 uppercase">ACTUALIZADO {timeAgo}</span>
         </div>
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Conversación Global — CNE Colombia</h1>
-          <p className="text-slate-400 mt-2">Narrativa y tendencias del proceso electoral colombiano en 27 países. Selecciona un marcador para ver el detalle.</p>
+          <p className="text-slate-400 mt-2">Narrativa y tendencias del proceso electoral colombiano en los distintos paises. Selecciona un marcador para ver el detalle.</p>
         </div>
         
-        <KpiCards items={mapaKpis} />
+        <KpiCards items={dynamicKpis} />
 
         <div className="flex gap-4 items-center mt-4">
             <div className="relative flex-1 max-w-sm">
@@ -111,7 +566,7 @@ export default function MapaPage() {
                 {Object.keys(platformConfig).map(plat => (
                     <Button key={plat} variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${selectedPlatform === plat ? 'bg-primary/20 border-primary' : 'text-white'}`} onClick={() => setSelectedPlatform(plat)}><BrandIcon name={plat} className="mr-2"/> {plat}</Button>
                 ))}
-                <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white"><FontAwesomeIcon icon={faRotate} className="h-4 w-4 mr-2"/> Actualizar</Button>
+                <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white" onClick={fetchMapData}><FontAwesomeIcon icon={faRotate} className="h-4 w-4 mr-2"/> Actualizar</Button>
             </div>
         </div>
       </div>
@@ -119,7 +574,7 @@ export default function MapaPage() {
       <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
-            <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} />
+            <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} countriesData={countriesData} globeMarkers={globeMarkers} />
           </Suspense>
         </Card>
 
@@ -154,48 +609,67 @@ export default function MapaPage() {
                     </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                     <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-                    <div className="flex rounded-full overflow-hidden h-2.5">
-                        <div style={{ width: `${country.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
-                        <div style={{ width: `${country.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
-                        <div style={{ width: `${country.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
+                    <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
                     </div>
-                    <div className="flex justify-between text-[10px] text-slate-400">
-                        <span>{country.sentimientoPct.positivo}% pos</span>
-                        <span>{country.sentimientoPct.neutral}% neu</span>
-                        <span>{country.sentimientoPct.negativo}% neg</span>
+                    <div className="flex text-[10px] font-medium leading-none">
+                        <div style={{ width: `${country.sentimientoPct.positivo}%`, color: sentimentColors.positivo }} className="truncate pr-1">
+                            {country.sentimientoPct.positivo > 0 && `${country.sentimientoPct.positivo}%`}
+                        </div>
+                        <div style={{ width: `${country.sentimientoPct.neutral}%`, color: sentimentColors.neutral }} className="text-center truncate px-1">
+                            {country.sentimientoPct.neutral > 0 && `${country.sentimientoPct.neutral}%`}
+                        </div>
+                        <div style={{ width: `${country.sentimientoPct.negativo}%`, color: sentimentColors.negativo }} className="text-right truncate pl-1">
+                            {country.sentimientoPct.negativo > 0 && `${country.sentimientoPct.negativo}%`}
+                        </div>
                     </div>
                 </div>
 
                 <div>
                     <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
                     <div className="space-y-2">
-                        {(Object.entries(country.plataformas) as [string, number][]).map(([plat, vol]) => (
-                            <div key={plat} className="flex items-center gap-3">
-                                <div style={{ color: platformColors[plat] }}>
-                                    <BrandIcon name={plat} className="w-5 h-5"/>
-                                </div>
-                                <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
-                                    <div className="h-full rounded-full" style={{ width: `${(vol / country.volumen) * 100}%`, background: platformColors[plat] }}></div>
-                                </div>
-                                <span className="text-xs font-mono w-16 text-right">{vol.toLocaleString()}</span>
-                            </div>
-                        ))}
+                        {(() => {
+                            const platformEntries = Object.entries(country.plataformas) as [string, number][];
+                            const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                            
+                            return platformEntries
+                                .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                                .map(([plat, vol]) => (
+                                    <div key={plat} className="flex items-center gap-3">
+                                        <div style={{ color: platformColors[plat] }}>
+                                            <BrandIcon name={plat} className="w-5 h-5"/>
+                                        </div>
+                                        <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                            <div 
+                                                className="h-full rounded-full transition-all duration-500" 
+                                                style={{ 
+                                                    width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, 
+                                                    background: platformColors[plat] 
+                                                }}
+                                            ></div>
+                                        </div>
+                                        <span className="text-xs font-mono w-16 text-right">{(vol || 0).toLocaleString()}</span>
+                                    </div>
+                                ));
+                        })()}
                     </div>
                 </div>
 
                 <div className="space-y-2">
                     <p className="text-xs text-slate-400">Palabras clave</p>
                     <div className="flex flex-wrap gap-1">
-                        {country.keywords.map((k) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px]">{k}</span>)}
+                        {country.keywords.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px]">{k}</span>)}
                     </div>
                 </div>
 
                 <div className="space-y-2">
                     <p className="text-xs text-slate-400">Top hashtags</p>
                     <div className="flex flex-wrap gap-1">
-                        {country.topHashtags.map((h) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
+                        {country.topHashtags.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
                     </div>
                 </div>
 
@@ -227,7 +701,6 @@ export default function MapaPage() {
                   </button>
                 ))}
             </div>
-            <div className="p-4 text-center text-xs text-slate-400 border-t border-white/5">+19 países más activos</div>
           </Card>
         </div>
       </div>
@@ -259,12 +732,219 @@ export default function MapaPage() {
                         <span className={`text-[10px] ${c.sentimiento === 'positivo' ? 'text-green-500' : 'text-slate-400'}`}>↑ {c.sentimiento.charAt(0).toUpperCase() + c.sentimiento.slice(1)}</span>
                     </div>
                     <div className="w-full h-1 mt-2 rounded-full bg-slate-800">
-                        <div className="h-full rounded-full bg-yellow-500" style={{ width: '60%' }}></div>
+                        <div 
+                            className="h-full rounded-full bg-yellow-500 transition-all duration-500" 
+                            style={{ width: `${((selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen) / maxVolume) * 100}%` }}
+                        ></div>
                     </div>
                 </button>
             ))}
         </div>
       </div>
+      
+      <AdminPopup title="Editor de Mapa Global">
+        <div className="space-y-6">
+            <div className="flex justify-between items-center bg-[#161d2b] p-4 rounded-xl border border-white/5">
+                <div>
+                    <h3 className="font-bold">Datos de Países</h3>
+                    <p className="text-xs text-slate-400">Actualiza las métricas principales de conversación de cada país.</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                    <Button type="button" onClick={addNewCountry} variant="outline" className="bg-[#161d2b] border-white/10 text-white">
+                        <FontAwesomeIcon icon={faPlus} className="mr-2" /> Agregar País
+                    </Button>
+                    <Button type="button" onClick={repairAllCoordinates} disabled={lookingUp} variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20">
+                        <FontAwesomeIcon icon={faRotate} className={`mr-2 ${lookingUp ? 'animate-spin' : ''}`} /> 
+                        {lookingUp ? 'Reparando...' : 'Reparar Coords'}
+                    </Button>
+                    <label className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-colors flex items-center">
+                        <FontAwesomeIcon icon={faUpload} className="mr-2" /> Importar Excel
+                        <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelUpload} />
+                    </label>
+                    <Button type="button" onClick={saveMapData} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todos
+                    </Button>
+                </div>
+            </div>
+            
+            <div className="bg-[#101726] p-4 rounded-xl border border-white/5">
+                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-2 block">Seleccionar País a Editar</label>
+                <select 
+                    className="w-full h-10 rounded-lg bg-[#161d2b] border border-white/10 px-3 py-2 text-sm outline-none focus:border-primary text-white"
+                    value={editingCountryId || ''}
+                    onChange={(e) => setEditingCountryId(e.target.value)}
+                >
+                    <option value="">-- Seleccionar --</option>
+                    {countriesData.map(c => (
+                        <option key={c.id} value={c.id}>{c.pais} ({c.id})</option>
+                    ))}
+                </select>
+            </div>
+
+            {editingCountryId && countriesData.find(c => c.id === editingCountryId) && (
+                <div className="space-y-4 bg-[#101726] p-4 rounded-xl border border-white/5">
+                    {(() => {
+                        // Sync raw fields when editing country changes
+
+                        const c = countriesData.find(c => c.id === editingCountryId)!;
+                        return (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">ID (ISO 2-letras)</label>
+                                        <Input type="text" value={c.id} readOnly className="bg-[#0b101d] border-white/5 h-10 opacity-60" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">
+                                            Nombre del País {lookingUp && <span className="text-blue-400 ml-2 animate-pulse">Buscando...</span>}
+                                        </label>
+                                        <Input 
+                                            type="text" 
+                                            value={c.pais} 
+                                            onChange={(e) => handleCountryChange(c.id, 'pais', e.target.value)} 
+                                            onBlur={(e) => lookupCountryByName(c.id, e.target.value)}
+                                            placeholder="Escribe el nombre y sale el foco para auto-detectar"
+                                            className="bg-[#161d2b] border-white/10 h-10" 
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4 items-center">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Latitud</label>
+                                        <Input type="number" step="0.0001" value={c.lat ?? 0} onChange={(e) => handleCountryChange(c.id, 'lat', parseFloat(e.target.value))} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Longitud</label>
+                                        <Input type="number" step="0.0001" value={c.lng ?? 0} onChange={(e) => handleCountryChange(c.id, 'lng', parseFloat(e.target.value))} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center pt-4">
+                                        <span className="text-3xl">{c.emoji || '🌍'}</span>
+                                        <span className="text-[10px] text-slate-500 mt-1">Auto-bandera</span>
+                                    </div>
+                                </div>
+                                {(!c.lat && !c.lng) && (
+                                    <p className="text-xs text-amber-400 bg-amber-400/10 px-3 py-2 rounded-lg">
+                                        ⚠️ Coordenadas en 0,0. Escribe el nombre del país o ajusta lat/lng manualmente para ubicarlo en el globo.
+                                    </p>
+                                )}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Tema Principal</label>
+                                        <Input type="text" value={c.tema} onChange={(e) => handleCountryChange(c.id, 'tema', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Tendencia General</label>
+                                        <select 
+                                            className="w-full h-10 rounded-lg bg-[#161d2b] border border-white/10 px-2.5 py-1 text-sm outline-none"
+                                            value={c.tendencia} onChange={(e) => handleCountryChange(c.id, 'tendencia', e.target.value)}
+                                        >
+                                            <option value="sube">Sube</option>
+                                            <option value="baja">Baja</option>
+                                            <option value="estable">Estable</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <h4 className="text-sm font-bold text-blue-400 border-b border-white/10 pb-2 mt-4">Redes Sociales (Menciones)</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <FontAwesomeIcon icon={faTiktok} className="text-white w-5 h-5"/>
+                                        <Input type="number" value={(c.plataformas as any)?.TikTok || 0} onChange={(e) => handlePlatformChange(c.id, 'TikTok', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <FontAwesomeIcon icon={faTwitter} className="text-white w-5 h-5"/>
+                                        <Input type="number" value={(c.plataformas as any)?.X || 0} onChange={(e) => handlePlatformChange(c.id, 'X', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <FontAwesomeIcon icon={faInstagram} className="text-[#E1306C] w-5 h-5"/>
+                                        <Input type="number" value={(c.plataformas as any)?.Instagram || 0} onChange={(e) => handlePlatformChange(c.id, 'Instagram', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <FontAwesomeIcon icon={faFacebook} className="text-[#1877F2] w-5 h-5"/>
+                                        <Input type="number" value={(c.plataformas as any)?.Facebook || 0} onChange={(e) => handlePlatformChange(c.id, 'Facebook', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 mt-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Volumen Total</label>
+                                        <Input type="number" value={c.volumen} disabled className="bg-[#0b101d] border-white/5 h-10 text-yellow-500 font-bold opacity-70" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Sentimiento</label>
+                                        <select 
+                                            className="w-full h-10 rounded-lg bg-[#161d2b] border border-white/10 px-2.5 py-1 text-sm outline-none focus:border-primary"
+                                            value={c.sentimiento} onChange={(e) => handleCountryChange(c.id, 'sentimiento', e.target.value)}
+                                        >
+                                            <option value="positivo">Positivo</option>
+                                            <option value="neutral">Neutral</option>
+                                            <option value="negativo">Negativo</option>
+                                            <option value="mixto">Mixto</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">% Crecimiento</label>
+                                        <Input type="number" value={c.pctCambio} onChange={(e) => handleCountryChange(c.id, 'pctCambio', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                </div>
+
+                                <h4 className="text-sm font-bold text-blue-400 border-b border-white/10 pb-2 mt-4">Distribución del Sentimiento (%)</h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-green-400 uppercase tracking-widest block mb-1">Positivo</label>
+                                        <Input type="number" value={c.sentimientoPct?.positivo || 0} onChange={(e) => handleSentimentPctChange(c.id, 'positivo', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-yellow-400 uppercase tracking-widest block mb-1">Neutral</label>
+                                        <Input type="number" value={c.sentimientoPct?.neutral || 0} onChange={(e) => handleSentimentPctChange(c.id, 'neutral', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-red-400 uppercase tracking-widest block mb-1">Negativo</label>
+                                        <Input type="number" value={c.sentimientoPct?.negativo || 0} onChange={(e) => handleSentimentPctChange(c.id, 'negativo', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                    </div>
+                                </div>
+
+                                <h4 className="text-sm font-bold text-blue-400 border-b border-white/10 pb-2 mt-4">Detalles Cualitativos</h4>
+                                <div>
+                                    <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Top Hashtags (separados por coma)</label>
+                                    <Input 
+                                        type="text" 
+                                        value={rawHashtags}
+                                        placeholder="Ej: #Elecciones2026, #CNE"
+                                        onFocus={() => setRawHashtags((c.topHashtags || []).join(', '))}
+                                        onChange={(e) => setRawHashtags(e.target.value)}
+                                        onBlur={(e) => handleArrayChange(c.id, 'topHashtags', e.target.value)}
+                                        className="bg-[#161d2b] border-white/10 h-10" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Palabras Clave (separadas por coma)</label>
+                                    <Input 
+                                        type="text" 
+                                        value={rawKeywords}
+                                        placeholder="Ej: fraude, votaciones, garantías"
+                                        onFocus={() => setRawKeywords((c.keywords || []).join(', '))}
+                                        onChange={(e) => setRawKeywords(e.target.value)}
+                                        onBlur={(e) => handleArrayChange(c.id, 'keywords', e.target.value)}
+                                        className="bg-[#161d2b] border-white/10 h-10" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Resumen / Análisis Corto</label>
+                                    <textarea 
+                                        className="w-full h-24 rounded-lg bg-[#161d2b] border border-white/10 p-3 text-sm outline-none focus:border-primary text-slate-300 resize-none"
+                                        value={c.resumen || ''}
+                                        placeholder="Escribe un análisis representativo del país..."
+                                        onChange={(e) => handleCountryChange(c.id, 'resumen', e.target.value)}
+                                    ></textarea>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
+        </div>
+      </AdminPopup>
     </div>
   );
 }

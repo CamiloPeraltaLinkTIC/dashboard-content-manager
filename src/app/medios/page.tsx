@@ -1,15 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
-import { mediosData } from "@/data/mock";
 import { 
   faNewspaper, 
   faRadio, 
   faTv, 
   faGlobe, 
   faArrowTrendUp, 
-  faRotate 
+  faRotate,
+  faLock,
+  faSave,
+  faPlus,
+  faTrash,
+  faUpload
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -19,17 +24,19 @@ import {
   YAxis, 
   Tooltip, 
   ResponsiveContainer, 
-  CartesianGrid, 
-  Legend 
+  CartesianGrid
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import { AdminPopup } from "@/components/admin-popup";
+import { Input } from "@/components/ui/input";
+import * as XLSX from 'xlsx';
 
 // Helper to get media icon based on name/type
 const getMediaIcon = (medio: string) => {
   const name = medio.toLowerCase();
   if (name.includes("tiempo") || name.includes("semana") || name.includes("pulzo") || name.includes("infobae")) return faNewspaper;
-  if (name.includes("radio") || name.includes("blu") || name.includes("la w")) return faRadio;
-  if (name.includes("televisión") || name.includes("rcn")) return faTv;
+  if (name.includes("radio") || name.includes("blu") || name.includes("la w") || name.includes("caracol")) return faRadio;
+  if (name.includes("televisión") || name.includes("rcn") || name.includes("caracol tv")) return faTv;
   return faGlobe;
 };
 
@@ -40,171 +47,394 @@ const sentimentColors = {
 };
 
 export default function MediosPage() {
-  const d = mediosData;
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [feed, setFeed] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [timeAgo, setTimeAgo] = useState<string>("AHORA");
 
+  const fetchMediosData = async () => {
+    setLoading(true);
+    const { data: pData } = await supabase.from('content_manager_medios_profiles').select('*');
+    const { data: fData } = await supabase.from('content_manager_medios_feed').select('*').order('id', { ascending: false });
+    
+    if (pData) setProfiles(pData);
+    if (fData) setFeed(fData);
+    setLastFetchTime(new Date());
+    setTimeAgo("AHORA");
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchMediosData();
+  }, []);
+
+  useEffect(() => {
+    if (!lastFetchTime) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diffInMins = Math.floor((now.getTime() - lastFetchTime.getTime()) / 60000);
+      if (diffInMins === 0) setTimeAgo("AHORA");
+      else setTimeAgo(`HACE ${diffInMins} MIN`);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [lastFetchTime]);
+
+  const saveMediosData = async () => {
+    try {
+        for (const p of profiles) {
+            await supabase.from('content_manager_medios_profiles').upsert(p);
+        }
+        for (const post of feed) {
+            await supabase.from('content_manager_medios_feed').upsert(post);
+        }
+        alert("¡Datos guardados con éxito!");
+        fetchMediosData();
+    } catch (err) {
+        console.error(err);
+        alert("Error al guardar datos");
+    }
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            
+            let updatedProfiles = [...profiles];
+            let updatedFeed = [...feed];
+            let feedsFound = 0;
+            let profilesFound = 0;
+
+            wb.SheetNames.forEach((wsname) => {
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+                if (data.length === 0) return;
+
+                const firstRow = data[0] as any;
+
+                // FEED detection
+                if (firstRow['Medio'] || firstRow['medio'] || firstRow['Titular'] || firstRow['texto']) {
+                    const newFeedData = data.map((row: any) => ({
+                        medio: row['Medio'] || row['medio'] || 'Medio',
+                        tiempo: row['Tiempo'] || row['tiempo'] || 'Ahora',
+                        texto: row['Texto'] || row['texto'] || row['Titular'] || '',
+                        tipo: (row['Tipo'] || row['tipo'] || 'neutral').toLowerCase()
+                    }));
+                    updatedFeed = [...newFeedData, ...updatedFeed].slice(0, 50);
+                    feedsFound += newFeedData.length;
+                } 
+                // PROFILES detection
+                else if (firstRow['ID'] || firstRow['id'] || firstRow['Notas'] || firstRow['notas']) {
+                    data.forEach((row: any) => {
+                        const id = (row['ID'] || row['id'] || '').toLowerCase().trim();
+                        if (!id) return;
+                        
+                        const idx = updatedProfiles.findIndex(p => p.id === id);
+                        const obj = {
+                            id,
+                            label: row['Etiqueta'] || row['label'] || id.toUpperCase(),
+                            value: (row['Valor'] || row['value'] || '0').toString(),
+                            delta: (row['Delta'] || row['delta'] || '0%').toString(),
+                            sentimiento: parseInt(row['Sentimiento'] || row['sentimiento']) || 50,
+                            notas: parseInt(row['Notas'] || row['notas']) || 0,
+                            tendencia_semanal: row['Tendencia'] ? (typeof row['Tendencia'] === 'string' ? JSON.parse(row['Tendencia']) : row['Tendencia']) : []
+                        };
+                        if (idx !== -1) updatedProfiles[idx] = obj;
+                        else updatedProfiles.push(obj);
+                    });
+                    profilesFound++;
+                }
+            });
+
+            if (feedsFound > 0) setFeed(updatedFeed);
+            if (profilesFound > 0) setProfiles(updatedProfiles);
+            alert(`Importación finalizada: ${profilesFound} perfiles y ${feedsFound} noticias.`);
+        } catch(err) {
+            console.error(err);
+            alert("Error procesando Excel.");
+        }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const kpis = useMemo(() => profiles.filter(p => p.id.startsWith('kpi_')), [profiles]);
+  const topMedios = useMemo(() => profiles.filter(p => !p.id.startsWith('kpi_')).sort((a,b) => b.notas - a.notas), [profiles]);
+  
   const stackedData = useMemo(() => {
-    return d.tendenciaSemanal.map((item) => ({
+    const kpiNotas = profiles.find(p => p.id === 'kpi_notas');
+    if (!kpiNotas || !kpiNotas.tendencia_semanal) return [];
+    return kpiNotas.tendencia_semanal.map((item: any) => ({
       ...item,
       neutral: item.notas - item.positivas - item.negativas
     }));
-  }, [d.tendenciaSemanal]);
+  }, [profiles]);
+
+  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Conversación en Medios...</div>;
 
   return (
     <div className="min-h-screen bg-[#03060d] text-white p-6 overflow-y-auto">
       {/* Header Section */}
-      <div className="space-y-4 mb-8">
-        <div className="flex gap-2">
-            <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20">MEDIOS</span>
-            <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">COBERTURA</span>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <div className="flex gap-2 mb-2">
+              <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20 uppercase font-black">MEDIOS DE COMUNICACIÓN</span>
+              <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-white/10 uppercase">ACTUALIZADO {timeAgo}</span>
+          </div>
+          <h1 className="text-3xl font-bold mb-1">Conversación en Medios</h1>
+          <p className="text-slate-400 text-sm">Monitoreo de prensa, radio, TV y medios digitales sobre el proceso electoral.</p>
         </div>
-        <div className="flex justify-between items-start">
-            <div>
-                <h1 className="text-4xl font-bold tracking-tight">Conversación en Medios</h1>
-                <p className="text-slate-400 mt-2">Monitoreo de cobertura en prensa, radio, televisión y medios digitales.</p>
-            </div>
-            <div className="flex items-center gap-4 text-xs">
-                <span className="text-green-400 flex items-center gap-1">● EN VIVO</span>
-                <span className="text-slate-500">02:58 p. m. Jueves, 4 De Junio</span>
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white p-0 h-auto">
-                    <FontAwesomeIcon icon={faRotate} className="mr-1"/> Actualizar
-                </Button>
-            </div>
+        <div className="flex gap-3">
+            <Button variant="outline" size="sm" onClick={fetchMediosData} className="bg-[#0b101d] border-white/10 text-white">
+                <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/> Actualizar
+            </Button>
         </div>
-        
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {d.kpis.map((kpi, i) => (
-                <Card key={kpi.label} className="bg-[#0b101d] border-white/5 p-5 rounded-2xl relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2">
-                        <p className="text-[10px] font-bold text-slate-500 tracking-wider">{kpi.label.toUpperCase()}</p>
-                        <span className="text-green-500 text-[10px] font-bold">↗ {kpi.delta}</span>
-                    </div>
-                    <p className="text-3xl font-bold text-blue-500">{kpi.value}</p>
-                    <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-800">
-                        <div 
-                            className="h-full" 
-                            style={{ 
-                                width: '40%', 
-                                background: i === 0 ? '#3b82f6' : i === 1 ? '#e8a817' : i === 2 ? '#2eb88a' : '#3b82f6' 
-                            }} 
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          {kpis.map((kpi, i) => (
+              <Card key={kpi.id} className="bg-[#0b101d] border-white/5 p-5 rounded-2xl relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-2">
+                      <p className="text-[10px] font-bold text-slate-500 tracking-wider">{kpi.label.toUpperCase()}</p>
+                      <span className={`${kpi.delta.includes('+') ? 'text-green-500' : 'text-red-500'} text-[10px] font-bold`}>{kpi.delta}</span>
+                  </div>
+                  <p className="text-3xl font-bold text-blue-500">{kpi.value}</p>
+                  <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-800">
+                      <div 
+                          className="h-full" 
+                          style={{ 
+                              width: '40%', 
+                              background: i === 0 ? '#3b82f6' : i === 1 ? '#e8a817' : i === 2 ? '#2eb88a' : '#3b82f6' 
+                          }} 
+                      />
+                  </div>
+              </Card>
+          ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Weekly Chart */}
+        <Card className="lg:col-span-2 bg-[#0b101d] border border-white/5 p-6 rounded-2xl">
+            <div className="mb-8">
+                <h3 className="font-bold text-lg text-slate-200">Notas Publicadas esta Semana</h3>
+                <p className="text-xs text-slate-500">Distribución por sentimiento — últimos 7 días</p>
+            </div>
+            <div className="h-64 px-4">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                        data={stackedData} 
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                        <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
+                        <Tooltip 
+                            cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                            contentStyle={{ backgroundColor: '#0b101d', border: '1px solid #1e293b', borderRadius: '12px' }}
                         />
+                        <Bar dataKey="positivas" stackId="a" fill={sentimentColors.positivas} barSize={60} />
+                        <Bar dataKey="neutral" stackId="a" fill={sentimentColors.neutral} />
+                        <Bar dataKey="negativas" stackId="a" fill={sentimentColors.negativas} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center gap-6 mt-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#2eb88a]"></span> Positivas</div>
+                <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#64748b]"></span> Neutral</div>
+                <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#df3a3a]"></span> Negativas</div>
+            </div>
+        </Card>
+
+        {/* Top Media */}
+        <Card className="bg-[#0b101d] border border-white/5 p-6 rounded-2xl overflow-y-auto">
+            <h3 className="text-sm font-semibold mb-6 text-slate-200 uppercase tracking-widest">Top Medios</h3>
+            <div className="space-y-4">
+                {topMedios.map((m, i) => (
+                    <div key={m.id} className="flex items-center gap-3">
+                        <div className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[10px] font-black" style={i < 3 ? { color: '#fbbf24' } : { color: '#475569' }}>
+                            {i + 1}
+                        </div>
+                        <div className="flex items-center gap-2 w-32 shrink-0">
+                            <FontAwesomeIcon icon={getMediaIcon(m.label)} className="w-3.5 h-3.5 text-blue-500" />
+                            <span className="text-xs font-bold truncate text-slate-100">{m.label}</span>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                            <div className="flex justify-between text-[9px] font-bold">
+                                <span className="text-slate-500">{m.notas} notas</span>
+                                <span className="text-green-500">{m.sentimiento}% pos</span>
+                            </div>
+                            <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{ width: `${(m.notas / topMedios[0].notas) * 100}%` }} />
+                            </div>
+                        </div>
                     </div>
-                </Card>
+                ))}
+            </div>
+        </Card>
+      </div>
+
+      {/* Live Feed de Noticias */}
+      <div className="bg-[#0b101d] border border-white/5 rounded-2xl p-6 mb-20">
+        <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+                <span className="text-blue-500 font-bold text-xl">📰</span>
+                <h1 className="text-xl font-bold">Últimas Noticias y Titulares</h1>
+                <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● ACTUALIZADO</span>
+            </div>
+        </div>
+
+        <div className="space-y-2">
+            {feed.map((post) => (
+                <div key={post.id} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group">
+                    <div className="p-2 rounded-lg bg-white/5 text-blue-400">
+                        <FontAwesomeIcon icon={getMediaIcon(post.medio)} className="w-5 h-5"/>
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-sm text-blue-400">{post.medio.toUpperCase()}</span>
+                            <span className="text-xs text-slate-500">{post.tiempo}</span>
+                        </div>
+                        <p className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">{post.texto}</p>
+                    </div>
+                    <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.tipo === 'positivo' ? 'bg-green-500/10 text-green-500' : post.tipo === 'negativo' ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                        {post.tipo}
+                    </div>
+                </div>
             ))}
         </div>
       </div>
 
-      {/* Weekly Chart */}
-      <Card className="bg-[#0b101d] border border-white/5 p-6 rounded-2xl mb-8">
-        <div className="mb-8">
-            <h3 className="font-bold text-lg text-slate-200">Notas Publicadas esta Semana</h3>
-            <p className="text-xs text-slate-500">Distribución por sentimiento — últimos 7 días</p>
-        </div>
-        <div className="h-72 px-4">
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                    data={stackedData} 
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    barCategoryGap="10%"
-                >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                    <XAxis 
-                        dataKey="dia" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#64748b', fontSize: 12 }} 
-                        dy={10}
-                    />
-                    <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#64748b', fontSize: 11 }} 
-                    />
-                    <Tooltip 
-                        cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                        contentStyle={{ backgroundColor: '#0b101d', border: '1px solid #1e293b', borderRadius: '12px' }}
-                    />
-                    {/* Much wider bars as requested */}
-                    <Bar dataKey="positivas" stackId="a" fill={sentimentColors.positivas} barSize={90} />
-                    <Bar dataKey="neutral" stackId="a" fill={sentimentColors.neutral} />
-                    <Bar dataKey="negativas" stackId="a" fill={sentimentColors.negativas} radius={[4, 4, 0, 0]} />
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-        <div className="flex justify-center gap-12 mt-8 text-[11px] font-bold text-slate-400">
-            <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#2eb88a]"></span> Positivas</div>
-            <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#64748b]"></span> Neutral</div>
-            <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#df3a3a]"></span> Negativas</div>
-        </div>
-      </Card>
+      <AdminPopup title="Editor de Conversación en Medios">
+            <div className="space-y-6">
+                <div className="flex justify-between items-center bg-[#161d2b] p-4 rounded-xl border border-white/5">
+                    <div>
+                        <h3 className="font-bold">Panel de Administración</h3>
+                        <p className="text-xs text-slate-400">Edita métricas, gráficos y titulares del día.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="relative cursor-pointer bg-green-600/20 text-green-400 border-green-500/20">
+                            <FontAwesomeIcon icon={faUpload} className="mr-2" /> Excel
+                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleExcelUpload} accept=".xlsx,.xls" />
+                        </Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 font-bold" onClick={saveMediosData}>
+                            <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todos
+                        </Button>
+                    </div>
+                </div>
 
-      {/* Bottom Sections */}
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Top Media */}
-        <Card className="bg-[#0b101d] border border-white/5 p-4 rounded-2xl shadow-none">
-            <h3 className="text-sm font-semibold mb-4 text-slate-200">Top Medios por Número de Notas</h3>
-            <div className="space-y-2.5">
-                {d.topMedios.map((m, i) => (
-                    <div key={m.medio} className="flex items-center gap-3">
-                        {/* Rank Circle */}
-                        <div 
-                            className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold" 
-                            style={i < 3 ? { color: 'rgb(243, 177, 22)' } : { background: 'rgb(32, 40, 60)', color: 'rgb(136, 136, 136)' }}
-                        >
-                            {i + 1}
-                        </div>
-                        
-                        {/* Media Info (Icon + Name) */}
-                        <div className="flex items-center gap-1.5 w-36 shrink-0">
-                            <span style={{ color: 'rgb(43, 130, 238)' }}>
-                                <FontAwesomeIcon icon={getMediaIcon(m.medio)} className="w-3.5 h-3.5" />
-                            </span>
-                            <span className="text-sm font-medium truncate text-slate-100">{m.medio}</span>
-                        </div>
-
-                        {/* Progress Section */}
-                        <div className="flex-1 space-y-0.5">
-                            <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground">{m.notas} notas</span>
-                                <span className="font-medium" style={{ color: 'rgb(46, 184, 138)' }}>{m.sentimiento}%</span>
-                            </div>
-                            <div className="h-1 w-full bg-slate-800 rounded-[4px] overflow-hidden">
-                                <div 
-                                    className="h-full transition-all duration-700 ease-in-out" 
-                                    style={{ 
-                                        width: `${(m.notas / d.topMedios[0].notas) * 100}%`,
-                                        borderRadius: '4px',
-                                        background: 'linear-gradient(90deg, var(--primary), var(--secondary))'
-                                    }}
-                                />
-                            </div>
+                <div className="grid grid-cols-1 gap-8">
+                    {/* Media Profiles Section */}
+                    <div>
+                        <h3 className="text-blue-400 font-black mb-4 uppercase text-xs tracking-widest flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> KPIs y Medios Top
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {profiles.map((p, idx) => (
+                                <div key={p.id} className="bg-white/5 p-4 rounded-xl space-y-3 border border-white/5">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold uppercase text-[10px] text-slate-400">{p.id}</span>
+                                        <Input value={p.label} onChange={(e) => {
+                                            const news = [...profiles];
+                                            news[idx].label = e.target.value;
+                                            setProfiles(news);
+                                        }} className="bg-transparent border-none w-2/3 text-right text-xs font-bold h-6" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Valor/Texto</label>
+                                            <Input value={p.value} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].value = e.target.value;
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Delta/Positiva</label>
+                                            <Input value={p.delta} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].delta = e.target.value;
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Sentimiento %</label>
+                                            <Input type="number" value={p.sentimiento} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].sentimiento = parseInt(e.target.value);
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-black">Notas Totales</label>
+                                            <Input type="number" value={p.notas} onChange={(e) => {
+                                                const news = [...profiles];
+                                                news[idx].notas = parseInt(e.target.value);
+                                                setProfiles(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs" />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
-                ))}
-            </div>
-        </Card>
 
-        {/* Trending Topics */}
-        <Card className="bg-[#0b101d] border-white/5 p-6 rounded-2xl">
-            <h3 className="font-bold text-lg mb-6">Temas en Tendencia</h3>
-            <div className="space-y-3">
-                {d.temasTendencia.map((t, i) => (
-                    <div key={t.tema} className="bg-[#05080f] p-4 rounded-xl flex items-center gap-4 group hover:bg-[#080c14] transition-colors">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold">
-                            #{i + 1}
+                    {/* News Feed Section */}
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-yellow-500 font-black uppercase text-xs tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-yellow-500"></span> Feed de Noticias
+                            </h3>
+                            <Button size="sm" variant="ghost" className="text-[10px] uppercase font-black text-slate-400 hover:text-white" onClick={() => setFeed([{ medio: 'Medio', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])}>
+                                <FontAwesomeIcon icon={faPlus} className="mr-2" /> Agregar Noticia
+                            </Button>
                         </div>
-                        <div className="flex-1">
-                            <p className="font-bold text-sm text-slate-200">{t.tema}</p>
-                            <p className="text-[10px] text-slate-500">{t.count.toLocaleString()} menciones</p>
-                        </div>
-                        <div className="text-[10px] text-green-500 font-bold flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <FontAwesomeIcon icon={faArrowTrendUp} className="w-2.5 h-2.5"/> trending
+                        <div className="space-y-2">
+                            {feed.map((post, idx) => (
+                                <div key={idx} className="bg-white/5 p-3 rounded-xl flex gap-3 items-start border border-white/5">
+                                    <div className="flex-1 space-y-2">
+                                        <div className="flex gap-2">
+                                            <Input value={post.medio} placeholder="Medio" onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].medio = e.target.value;
+                                                setFeed(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs w-1/3" />
+                                            <Input value={post.tiempo} placeholder="Tiempo" onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].tiempo = e.target.value;
+                                                setFeed(news);
+                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs w-1/3" />
+                                            <select className="bg-[#05080f] border-white/5 h-8 text-xs rounded-md px-2 w-1/3" value={post.tipo} onChange={(e) => {
+                                                const news = [...feed];
+                                                news[idx].tipo = e.target.value;
+                                                setFeed(news);
+                                            }}>
+                                                <option value="positivo">Positivo</option>
+                                                <option value="neutral">Neutral</option>
+                                                <option value="negativo">Negativo</option>
+                                            </select>
+                                        </div>
+                                        <textarea className="w-full bg-[#05080f] border-white/5 rounded-md p-2 text-xs text-white focus:outline-none" value={post.texto} rows={2} onChange={(e) => {
+                                            const news = [...feed];
+                                            news[idx].texto = e.target.value;
+                                            setFeed(news);
+                                        }} />
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-400 p-1 h-auto" onClick={() => setFeed(feed.filter((_, i) => i !== idx))}>
+                                        <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                                    </Button>
+                                </div>
+                            ))}
                         </div>
                     </div>
-                ))}
+                </div>
             </div>
-        </Card>
-      </div>
+      </AdminPopup>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Globe from "react-globe.gl";
 import * as topojson from "topojson-client";
 import { Topology } from "topojson-specification";
-import { countriesData, globeMarkers } from "@/data/mock";
 import { Button } from "@/components/ui/button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -75,7 +74,7 @@ const normalizeName = (name: string) => {
   return name.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
-const getCountryData = (name: string) => {
+const getCountryData = (name: string, countriesData: any[]) => {
   const normalizedInput = normalizeName(name);
   const mappedName = normalizeName(nameMapping[name] || name);
   
@@ -85,7 +84,7 @@ const getCountryData = (name: string) => {
   });
 };
 
-const getMissionData = (name: string) => {
+const getMissionData = (name: string, globeMarkers: any[]) => {
     const normalizedInput = normalizeName(name);
     const mappedName = normalizeName(nameMapping[name] || name);
     return globeMarkers.find(m => {
@@ -100,6 +99,8 @@ interface GlobeProps {
     selectedCountryId: string | null;
     selectedPlatform: string | null;
     hideIntensity?: boolean;
+    countriesData: any[];
+    globeMarkers: any[];
 }
 
 export function GlobeComponent({ 
@@ -107,7 +108,9 @@ export function GlobeComponent({
     onSelect, 
     selectedCountryId, 
     selectedPlatform,
-    hideIntensity = false 
+    hideIntensity = false,
+    countriesData = [],
+    globeMarkers = []
 }: GlobeProps) {
   const globeEl = useRef<any>();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -172,10 +175,10 @@ export function GlobeComponent({
     globeEl.current.controls().autoRotate = false;
 
     let currentIndex = 0;
-    const tourCountries = countriesData.filter(c => c.volumen > 0 || getMissionData(c.pais));
+    const tourCountries = countriesData.filter(c => c.volumen > 0 || getMissionData(c.pais, globeMarkers));
     
     const runTour = () => {
-        if (!isTourActive || hoveredCountry) return; // Don't tour if user is hovering
+        if (!isTourActive || hoveredCountry || tourCountries.length === 0) return; // Don't tour if user is hovering
         
         const countryData = tourCountries[currentIndex % tourCountries.length];
         setActiveTourCountryId(null);
@@ -197,14 +200,14 @@ export function GlobeComponent({
     return () => {
         clearInterval(interval);
     };
-  }, [isTourActive, onSelect, features, hoveredCountry]);
+  }, [isTourActive, onSelect, features, hoveredCountry, countriesData, globeMarkers]);
 
   // Helper to generate tooltip HTML content
   const getTooltipHtml = (countryId: string, isTour: boolean = false) => {
     const countryData = countriesData.find(c => c.id === countryId);
     if (!countryData) return '';
 
-    const dominantPlat = Object.keys(countryData.plataformas).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b);
+    const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
     const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
     const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
 
@@ -222,7 +225,7 @@ export function GlobeComponent({
             </div>
             <div class="theme">${countryData.tema}</div>
             <div class="stats">
-                <span class="volume">${countryData.volumen.toLocaleString()} menciones</span>
+                <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
                 <span class="sentiment">Positivo</span>
             </div>
             ${!isTour ? '<div class="footer">Clic para ver detalle completo</div>' : ''}
@@ -237,7 +240,7 @@ export function GlobeComponent({
         if (c) elements.push({ ...c, type: 'tooltip' } as any);
     }
     return elements;
-  }, [activeTourCountryId, hoveredCountry]);
+  }, [activeTourCountryId, hoveredCountry, countriesData]);
 
   return (
     <div 
@@ -423,7 +426,7 @@ export function GlobeComponent({
         polygonLabel={(d: any) => {
             const properties = d.properties;
             if (hideIntensity) {
-                const mission = getMissionData(properties.name);
+                const mission = getMissionData(properties.name, globeMarkers);
                 return mission ? `
                     <div class="globe-tooltip">
                         <p class="font-bold text-base mb-0.5">${mission.pais}</p>
@@ -434,10 +437,10 @@ export function GlobeComponent({
                 ` : `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
             }
 
-            const countryData = getCountryData(properties.name);
+            const countryData = getCountryData(properties.name, countriesData);
             if (!countryData) return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
             
-            const dominantPlat = Object.keys(countryData.plataformas).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b);
+            const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
             const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
             const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
             
@@ -455,7 +458,7 @@ export function GlobeComponent({
                     </div>
                     <div class="theme">${countryData.tema}</div>
                     <div class="stats">
-                        <span class="volume">${countryData.volumen.toLocaleString()} menciones</span>
+                        <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
                         <span class="sentiment">Positivo</span>
                     </div>
                     <div class="footer">Clic para ver detalle completo</div>
@@ -464,7 +467,7 @@ export function GlobeComponent({
         }}
         polygonAltitude={0.005}
         polygonCapColor={(d: any) => {
-            const countryData = getCountryData(d.properties.name);
+            const countryData = getCountryData(d.properties.name, countriesData);
             if (countryData?.id === selectedCountryId) return "#c77dff";
             if (hideIntensity) return "rgba(18, 112, 226, 0.15)";
             if (countryData) {
@@ -484,7 +487,7 @@ export function GlobeComponent({
             }
         }}
         onPolygonClick={(d: any) => {
-            const countryData = getCountryData(d.properties.name);
+            const countryData = getCountryData(d.properties.name, countriesData);
             if (countryData) {
                 onSelect(countryData.id);
                 setIsTourActive(false); 
