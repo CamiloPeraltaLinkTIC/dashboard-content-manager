@@ -358,7 +358,7 @@ export function GlobeComponent({
       )}
 
       {!hideIntensity && (
-        <div className="absolute bottom-6 left-6 z-50 bg-[#0b101d]/90 p-4 rounded-xl border border-white/10 text-white text-xs w-48 shadow-2xl">
+        <div className={`absolute bottom-6 ${isFullscreen ? 'right-6' : 'left-6'} z-[110] bg-[#0b101d]/90 p-4 rounded-xl border border-white/10 text-white text-xs w-48 shadow-2xl`}>
             <h4 className="font-bold mb-2 text-slate-300 tracking-tight">Intensidad de conversación</h4>
             <div className="space-y-1.5">
                 <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.muyAlta}}></span> Muy alta (&gt;75%)</div>
