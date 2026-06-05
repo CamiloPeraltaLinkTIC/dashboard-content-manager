@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
-import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
+import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { faMagnifyingGlass, faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -25,7 +25,7 @@ const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComp
 const platformConfig: Record<string, { color: string; icon: any; name: string }> = {
   Instagram: { color: "#E1306C", icon: faInstagram, name: "Instagram" },
   Facebook: { color: "#1877f2", icon: faFacebook, name: "Facebook" },
-  X: { color: "#ffffff", icon: faTwitter, name: "X" },
+  X: { color: "#ffffff", icon: faXTwitter, name: "X" },
   TikTok: { color: "#69C9D0", icon: faTiktok, name: "TikTok" },
 };
 
@@ -852,7 +852,7 @@ export default function MapaPage() {
                                         <Input type="number" value={(c.plataformas as any)?.TikTok || 0} onChange={(e) => handlePlatformChange(c.id, 'TikTok', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <FontAwesomeIcon icon={faTwitter} className="text-white w-5 h-5"/>
+                                        <FontAwesomeIcon icon={faXTwitter} className="text-white w-5 h-5"/>
                                         <Input type="number" value={(c.plataformas as any)?.X || 0} onChange={(e) => handlePlatformChange(c.id, 'X', e.target.value)} className="bg-[#161d2b] border-white/10 h-8" />
                                     </div>
                                     <div className="flex items-center gap-3">

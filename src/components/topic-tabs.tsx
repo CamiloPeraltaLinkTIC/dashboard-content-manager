@@ -8,14 +8,14 @@ import { Progress } from "@/components/ui/progress";
 import { newsCategoryColors, narrativeTypeColors, socialUrls } from "@/data/mock";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileLines, faArrowUpRightFromSquare, faClock, faHashtag, faZap, faBullseye, faGlobe, faPlus, faTrash, faSave } from "@fortawesome/free-solid-svg-icons";
-import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
+import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 const platformInfo: Record<string, { icon: any; color: string; label: string }> = {
   instagram: { icon: faInstagram, color: "rgb(225, 48, 108)", label: "Instagram" },
   facebook: { icon: faFacebook, color: "rgb(24, 119, 242)", label: "Facebook" },
-  x: { icon: faTwitter, color: "rgb(255, 255, 255)", label: "X (Twitter)" },
+  x: { icon: faXTwitter, color: "rgb(255, 255, 255)", label: "X (Twitter)" },
   tiktok: { icon: faTiktok, color: "rgb(105, 201, 208)", label: "TikTok" },
 };
 

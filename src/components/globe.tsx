@@ -8,20 +8,20 @@ import { Button } from "@/components/ui/button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 // Importar los iconos de FontAwesome
-import { faTwitter, faTiktok, faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
+import { faXTwitter, faTiktok, faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
 import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar } from "@fortawesome/free-solid-svg-icons";
 
 // Función para convertir un icono de FA a string SVG
 const faToSvg = (faIcon: any, color: string = "white") => {
-    const { width, height, svgPathData } = faIcon.icon;
+    const [width, height, , , svgPathData] = faIcon.icon;
     return `<svg viewBox="0 0 ${width} ${height}" width="14" height="14" fill="${color}" style="display:inline-block; vertical-align:middle;"><path d="${svgPathData}"/></svg>`;
 };
 
 const platformIcons: Record<string, string> = {
-    tiktok: faToSvg(faTiktok),
-    x: faToSvg(faTwitter),
-    instagram: faToSvg(faInstagram),
-    facebook: faToSvg(faFacebook)
+    tiktok: faToSvg(faTiktok, "#69C9D0"),
+    x: faToSvg(faXTwitter, "#ffffff"),
+    instagram: faToSvg(faInstagram, "#E1306C"),
+    facebook: faToSvg(faFacebook, "#1877f2")
 };
 
 const intensityColors = {

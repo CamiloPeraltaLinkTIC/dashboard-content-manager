@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { faRotate, faHeart, faComment, faSave, faPlus, faTrash, faUpload, faLock } from "@fortawesome/free-solid-svg-icons";
-import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
+import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import * as XLSX from 'xlsx';
 const platformConfig: Record<string, { color: string; icon: any; name: string }> = {
   Instagram: { color: "#E1306C", icon: faInstagram, name: "Instagram" },
   Facebook: { color: "#1877f2", icon: faFacebook, name: "Facebook" },
-  X: { color: "#ffffff", icon: faTwitter, name: "X" }, 
+  X: { color: "#ffffff", icon: faXTwitter, name: "X" }, 
   TikTok: { color: "#69C9D0", icon: faTiktok, name: "TikTok" },
 };
 
