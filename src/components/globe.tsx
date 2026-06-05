@@ -350,7 +350,7 @@ export function GlobeComponent({
       
       {isFullscreen && (
           <div className="absolute top-8 left-0 right-0 text-center z-[100] animate-in fade-in slide-in-from-top-4 duration-1000">
-              <h1 className="text-3xl font-black tracking-[0.2em] text-white uppercase italic opacity-90 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+              <h1 className="text-3xl font-black tracking-[0.2em] text-white uppercase opacity-90 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
                   {title}
               </h1>
               <div className="w-24 h-0.5 bg-blue-500 mx-auto mt-2 opacity-50"></div>
@@ -431,7 +431,7 @@ export function GlobeComponent({
                               <span className="text-green-500 font-bold text-xs">Predominante</span>
                           </div>
                           <div className="flex items-center gap-2">
-                              <span className="text-lg font-black text-green-500 flex items-center gap-2 uppercase tracking-tighter italic">
+                              <span className="text-lg font-black text-green-500 flex items-center gap-2 uppercase tracking-tighter">
                                   Positivo <FontAwesomeIcon icon={faStar} className="text-xs" />
                               </span>
                           </div>
@@ -457,7 +457,7 @@ export function GlobeComponent({
 
                   <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
                       <p className="text-[10px] text-blue-400 uppercase font-black tracking-widest mb-2">Resumen Narrativo</p>
-                      <p className="text-xs text-slate-300 leading-relaxed italic">{selectedData.resumen}</p>
+                      <p className="text-xs text-slate-300 leading-relaxed">{selectedData.resumen}</p>
                   </div>
               </div>
           </div>

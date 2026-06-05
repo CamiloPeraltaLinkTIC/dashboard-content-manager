@@ -171,10 +171,10 @@ export function TopicTabs({
                 <textarea 
                     value={strategy.narrativa.mensajeClave} 
                     onChange={e => setStrategy({...strategy, narrativa: {...strategy.narrativa, mensajeClave: e.target.value}})}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-yellow-500 italic min-h-[60px] outline-none"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-sm text-yellow-500 min-h-[60px] outline-none"
                 />
             ) : (
-                <p className="text-sm leading-relaxed italic" style={{ color: "rgb(243, 177, 22)" }}>
+                <p className="text-sm leading-relaxed" style={{ color: "rgb(243, 177, 22)" }}>
                     &ldquo;{narrativa.mensajeClave}&rdquo;
                 </p>
             )}
@@ -705,9 +705,9 @@ export function TopicTabs({
                             const newP = [...strategy.pauta];
                             newP[i].cta = e.target.value;
                             setStrategy({...strategy, pauta: newP});
-                        }} className="h-7 text-[11px] italic text-green-400 bg-white/5 border-white/10" />
+                        }} className="h-7 text-[11px] text-green-400 bg-white/5 border-white/10" />
                     ) : (
-                        <div className="font-medium italic" style={{ color: "rgb(46, 184, 138)" }}>&ldquo;{p.cta}&rdquo;</div>
+                        <div className="font-medium" style={{ color: "rgb(46, 184, 138)" }}>&ldquo;{p.cta}&rdquo;</div>
                     )}
                   </div>
                 </div>

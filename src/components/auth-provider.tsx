@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         <div className="z-10 bg-[#0b101d]/80 backdrop-blur-xl border border-white/10 p-10 rounded-3xl w-full max-w-md shadow-2xl flex flex-col items-center">
           <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6 ring-4 ring-blue-500/20">
-            <span className="text-3xl font-bold italic drop-shadow-[0_0_10px_rgba(59,130,246,0.8)] text-white">CNE</span>
+            <span className="text-3xl font-bold drop-shadow-[0_0_10px_rgba(59,130,246,0.8)] text-white">CNE</span>
           </div>
           
           <h1 className="text-2xl font-black mb-1 tracking-tight text-white">Tablero de Narrativa</h1>
