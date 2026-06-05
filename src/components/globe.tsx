@@ -498,30 +498,36 @@ export function GlobeComponent({
 
             let content = '';
 
-            if (mission) {
-                content += `
-                    <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
-                    <div class="stats" style="margin-top: 5px; padding-top: 5px;">
-                        <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
-                        <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
-                    </div>
-                `;
-            }
-
-            if (countryData) {
-                const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
-                const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-                
-                content += `
-                    <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
-                        ${iconSvg} ${dominantPlat} dominante
-                    </div>
-                    <div class="theme">${countryData.tema}</div>
-                    <div class="stats">
-                        <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
-                        <span class="sentiment">Positivo</span>
-                    </div>
-                `;
+            if (mode === 'witnesses') {
+                if (mission) {
+                    content = `
+                        <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
+                        <div class="stats" style="margin-top: 5px; padding-top: 5px;">
+                            <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
+                            <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
+                        </div>
+                    `;
+                } else {
+                    return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
+                }
+            } else {
+                if (countryData) {
+                    const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
+                    const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
+                    
+                    content = `
+                        <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                            ${iconSvg} ${dominantPlat} dominante
+                        </div>
+                        <div class="theme">${countryData.tema}</div>
+                        <div class="stats">
+                            <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
+                            <span class="sentiment">Positivo</span>
+                        </div>
+                    `;
+                } else {
+                    return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
+                }
             }
 
             return `
