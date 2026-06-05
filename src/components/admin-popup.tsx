@@ -7,16 +7,18 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGear } from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "./auth-provider";
 
-export function AdminPopup({ children, title = "Panel de Administración" }: { children: React.ReactNode, title?: string }) {
+export function AdminPopup({ children, title = "Panel de Administración", hideTrigger = false }: { children: React.ReactNode, title?: string, hideTrigger?: boolean }) {
   const { role } = useAuth();
 
   if (role !== "admin") return null;
 
   return (
     <Sheet>
-      <SheetTrigger className="fixed bottom-6 right-6 z-50 bg-[#c77dff] hover:bg-[#b05eed] text-white border-0 shadow-lg shadow-purple-500/20 rounded-full w-12 h-12 p-0 flex items-center justify-center">
-        <FontAwesomeIcon icon={faGear} className="w-5 h-5" />
-      </SheetTrigger>
+      {!hideTrigger && (
+        <SheetTrigger className="fixed bottom-6 right-6 z-50 bg-[#c77dff] hover:bg-[#b05eed] text-white border-0 shadow-lg shadow-purple-500/20 rounded-full w-12 h-12 p-0 flex items-center justify-center">
+          <FontAwesomeIcon icon={faGear} className="w-5 h-5" />
+        </SheetTrigger>
+      )}
       
       <SheetContent side="right" className="bg-[#0b101d] text-white border-l border-white/10 w-full sm:max-w-xl md:max-w-2xl overflow-y-auto">
         <SheetHeader>

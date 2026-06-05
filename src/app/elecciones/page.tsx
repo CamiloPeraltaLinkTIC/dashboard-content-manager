@@ -315,7 +315,7 @@ export default function EleccionesPage() {
         />
       </div>
 
-      <AdminPopup title="Estratega: Elecciones Presidenciales">
+      <AdminPopup title="Estratega: Elecciones Presidenciales" hideTrigger={true}>
           <div className="space-y-6">
               <div className="flex justify-between items-center bg-[#161d2b] p-4 rounded-xl border border-white/5">
                 <div>

@@ -125,6 +125,10 @@ export function GlobeComponent({
   const [isTourActive, setIsTourActive] = useState(true);
   const [activeTourCountryId, setActiveTourCountryId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const userInteracting = useRef(false);
+  const tourTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentIndexRef = useRef(0);
+  const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Derived data for popup
   const selectedData = useMemo(() => 
@@ -163,52 +167,63 @@ export function GlobeComponent({
 
   // Sync point of view when selectedCountryId changes externally
   useEffect(() => {
-    if (selectedCountryId && globeEl.current) {
+    if (selectedCountryId && globeEl.current && !userInteracting.current) {
         const countryData = countriesData.find(c => c.id === selectedCountryId);
         if (countryData) {
             globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
         }
     }
-  }, [selectedCountryId]);
+  }, [selectedCountryId, countriesData]);
 
   // Country-to-Country Tour Logic
   useEffect(() => {
     if (!isTourActive || !globeEl.current || features.length === 0) {
         if (globeEl.current) globeEl.current.controls().autoRotate = false;
+        if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
         return;
     }
 
-    globeEl.current.controls().autoRotate = false;
-
-    let currentIndex = 0;
     const tourCountries = mode === 'witnesses'
         ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
         : countriesData.filter(c => c.volumen > 0);
     
+    if (tourCountries.length === 0) return;
+
     const runTour = () => {
-        if (!isTourActive || hoveredCountry || tourCountries.length === 0) return; // Don't tour if user is hovering
+        if (!isTourActive) return;
+
+        // If user is interacting or hovering, wait and try again
+        if (hoveredCountry || userInteracting.current) {
+            tourTimeoutRef.current = setTimeout(runTour, 2000);
+            return;
+        }
         
-        const countryData = tourCountries[currentIndex % tourCountries.length];
+        const countryData = tourCountries[currentIndexRef.current % tourCountries.length];
         setActiveTourCountryId(null);
-        globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 1.8 }, 3000);
         
-        setTimeout(() => {
-            if (isTourActive && !hoveredCountry) {
-                setActiveTourCountryId(countryData.id);
-                onSelect(countryData.id);
-            }
-        }, 3200);
-        
-        currentIndex++;
+        if (globeEl.current) {
+            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 1.8 }, 3000);
+            
+            tourTimeoutRef.current = setTimeout(() => {
+                if (isTourActive && !hoveredCountry && !userInteracting.current) {
+                    setActiveTourCountryId(countryData.id);
+                    onSelect(countryData.id);
+                    
+                    currentIndexRef.current++;
+                    tourTimeoutRef.current = setTimeout(runTour, 6000);
+                } else {
+                    runTour();
+                }
+            }, 3200);
+        }
     };
 
-    runTour();
-    const interval = setInterval(runTour, 9000);
+    tourTimeoutRef.current = setTimeout(runTour, 1000);
 
     return () => {
-        clearInterval(interval);
+        if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
     };
-  }, [isTourActive, onSelect, features, hoveredCountry, countriesData, globeMarkers]);
+  }, [isTourActive, onSelect, features, hoveredCountry, countriesData, globeMarkers, mode]);
 
   // Helper to generate tooltip HTML content
   const getTooltipHtml = (countryId: string, isTour: boolean = false) => {
@@ -547,6 +562,16 @@ export function GlobeComponent({
                 setIsTourActive(false); 
                 setActiveTourCountryId(countryData.id);
             }
+        }}
+        onGlobePointerDown={() => { userInteracting.current = true; }}
+        onGlobePointerUp={() => { 
+            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+            interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 2000);
+        }}
+        onZoom={() => { 
+            userInteracting.current = true;
+            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+            interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 3000);
         }}
       />
     </div>

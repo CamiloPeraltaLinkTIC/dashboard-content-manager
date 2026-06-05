@@ -474,7 +474,7 @@ export default function QuirozPage() {
         />
       </div>
 
-      <AdminPopup title="Estratega: Cristian Quiroz">
+      <AdminPopup title="Estratega: Cristian Quiroz" hideTrigger={true}>
           <div className="space-y-6">
               <div className="flex justify-between items-center bg-[#161d2b] p-4 rounded-xl border border-white/5">
                 <div>
