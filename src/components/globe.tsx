@@ -101,6 +101,9 @@ interface GlobeProps {
     hideIntensity?: boolean;
     countriesData: any[];
     globeMarkers: any[];
+    title?: string;
+    showDetails?: boolean;
+    mode?: 'global' | 'witnesses';
 }
 
 export function GlobeComponent({ 
@@ -110,7 +113,10 @@ export function GlobeComponent({
     selectedPlatform,
     hideIntensity = false,
     countriesData = [],
-    globeMarkers = []
+    globeMarkers = [],
+    title = "Conversación Global CNE Colombia",
+    showDetails = true,
+    mode = 'global'
 }: GlobeProps) {
   const globeEl = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,7 +181,9 @@ export function GlobeComponent({
     globeEl.current.controls().autoRotate = false;
 
     let currentIndex = 0;
-    const tourCountries = countriesData.filter(c => c.volumen > 0 || getMissionData(c.pais, globeMarkers));
+    const tourCountries = mode === 'witnesses'
+        ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
+        : countriesData.filter(c => c.volumen > 0);
     
     const runTour = () => {
         if (!isTourActive || hoveredCountry || tourCountries.length === 0) return; // Don't tour if user is hovering
@@ -205,29 +213,60 @@ export function GlobeComponent({
   // Helper to generate tooltip HTML content
   const getTooltipHtml = (countryId: string, isTour: boolean = false) => {
     const countryData = countriesData.find(c => c.id === countryId);
-    if (!countryData) return '';
+    if (!countryData && mode === 'global') return '';
 
-    const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
+    // Data for Global mode
+    const dominantPlat = countryData ? Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X") : "X";
     const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-    const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
+    
+    // Data for Witnesses mode
+    const mission = countryData ? getMissionData(countryData.pais, globeMarkers) : null;
+    
+    // Fallback for ID if countryData is missing but we have a mission via name mapping
+    const finalId = countryData?.id || (mission ? "??" : "??");
+    const flagUrl = `https://flagcdn.com/w40/${finalId.toLowerCase()}.png`;
+    const finalName = countryData?.pais || mission?.pais || "País";
+
+    let contentHtml = '';
+    
+    if (mode === 'witnesses') {
+        if (mission) {
+            contentHtml = `
+                <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
+                <div class="stats" style="margin-top: 5px; padding-top: 5px;">
+                    <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
+                    <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
+                </div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 8px;">${mission.narrativa || ''}</div>
+            `;
+        } else {
+            contentHtml = `<div class="theme" style="color: #64748b;">Sin misión registrada</div>`;
+        }
+    } else {
+        if (countryData) {
+            contentHtml = `
+                <div class="platform">${iconSvg} ${dominantPlat} dominante</div>
+                <div class="theme">${countryData.tema}</div>
+                <div class="stats">
+                    <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
+                    <span class="sentiment">Positivo</span>
+                </div>
+            `;
+        }
+    }
 
     return `
         <div class="globe-tooltip persistent">
             <div class="header">
                 <div class="flag-box">
-                    <span class="iso-code">${countryData.id}</span>
-                    <img src="${flagUrl}" class="flag-img" alt="${countryData.pais} flag" />
+                    <span class="iso-code">${finalId}</span>
+                    <img src="${flagUrl}" class="flag-img" alt="${finalName} flag" />
                 </div>
                 <div>
-                    <p class="country-name">${countryData.pais}</p>
-                    <p class="platform">${iconSvg} ${dominantPlat} dominante</p>
+                    <p class="country-name">${finalName}</p>
                 </div>
             </div>
-            <div class="theme">${countryData.tema}</div>
-            <div class="stats">
-                <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
-                <span class="sentiment">Positivo</span>
-            </div>
+            ${contentHtml}
             ${!isTour ? '<div class="footer">Clic para ver detalle completo</div>' : ''}
         </div>
     `;
@@ -236,6 +275,7 @@ export function GlobeComponent({
   const htmlElements = useMemo(() => {
     const elements = [{ lat: 4.5, lng: -74.3, type: 'hq' }];
     if (activeTourCountryId && !hoveredCountry) {
+        // If witnesses mode, ensure the element has the necessary mission data
         const c = countriesData.find(c => c.id === activeTourCountryId);
         if (c) elements.push({ ...c, type: 'tooltip' } as any);
     }
@@ -291,7 +331,7 @@ export function GlobeComponent({
       {isFullscreen && (
           <div className="absolute top-8 left-0 right-0 text-center z-[100] animate-in fade-in slide-in-from-top-4 duration-1000">
               <h1 className="text-3xl font-black tracking-[0.2em] text-white uppercase italic opacity-90 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
-                  Conversación Global CNE Colombia
+                  {title}
               </h1>
               <div className="w-24 h-0.5 bg-blue-500 mx-auto mt-2 opacity-50"></div>
           </div>
@@ -336,7 +376,7 @@ export function GlobeComponent({
       </div>
 
       {/* Fullscreen Popup Details */}
-      {isFullscreen && selectedData && (
+      {isFullscreen && showDetails && selectedData && (
           <div className="absolute left-6 top-24 bottom-6 w-80 bg-[#0b101d]/95 backdrop-blur-xl border border-white/10 rounded-2xl z-[100] shadow-2xl p-6 overflow-y-auto animate-in fade-in slide-in-from-left-6 duration-500">
               <div className="flex justify-between items-start mb-6">
                   <div>
@@ -425,42 +465,57 @@ export function GlobeComponent({
         polygonsData={features}
         polygonLabel={(d: any) => {
             const properties = d.properties;
-            if (hideIntensity) {
-                const mission = getMissionData(properties.name, globeMarkers);
-                return mission ? `
-                    <div class="globe-tooltip">
-                        <p class="font-bold text-base mb-0.5">${mission.pais}</p>
-                        <p class="text-xs text-slate-400 mb-1.5">${mission.ciudad}</p>
-                        <p class="font-bold text-[#f3b116] text-xs uppercase tracking-tight">${mission.tipo}</p>
-                        <p class="text-xs text-slate-300 mt-0.5">${mission.count} observadores</p>
-                    </div>
-                ` : `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
+            const countryData = getCountryData(properties.name, countriesData);
+            const mission = getMissionData(properties.name, globeMarkers);
+
+            if (!countryData && !mission) {
+                return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
             }
 
-            const countryData = getCountryData(properties.name, countriesData);
-            if (!countryData) return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
-            
-            const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
-            const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-            const flagUrl = `https://flagcdn.com/w40/${countryData.id.toLowerCase()}.png`;
-            
-            return `
-                <div class="globe-tooltip">
-                    <div class="header">
-                        <div class="flag-box">
-                            <span class="iso-code">${countryData.id}</span>
-                            <img src="${flagUrl}" class="flag-img" alt="${countryData.pais} flag" />
-                        </div>
-                        <div>
-                            <p class="country-name">${countryData.pais}</p>
-                            <p class="platform">${iconSvg} ${dominantPlat} dominante</p>
-                        </div>
+            const id = countryData?.id || mission?.id?.substring(0, 2).toUpperCase() || "??";
+            const flagUrl = `https://flagcdn.com/w40/${id.toLowerCase()}.png`;
+            const name = countryData?.pais || mission?.pais || properties.name;
+
+            let content = '';
+
+            if (mission) {
+                content += `
+                    <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
+                    <div class="stats" style="margin-top: 5px; padding-top: 5px;">
+                        <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
+                        <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
+                    </div>
+                `;
+            }
+
+            if (countryData) {
+                const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
+                const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
+                
+                content += `
+                    <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                        ${iconSvg} ${dominantPlat} dominante
                     </div>
                     <div class="theme">${countryData.tema}</div>
                     <div class="stats">
                         <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
                         <span class="sentiment">Positivo</span>
                     </div>
+                `;
+            }
+
+            return `
+                <div class="globe-tooltip">
+                    <div class="header">
+                        <div class="flag-box">
+                            <span class="iso-code">${id}</span>
+                            <img src="${flagUrl}" class="flag-img" alt="${name} flag" />
+                        </div>
+                        <div>
+                            <p class="country-name">${name}</p>
+                        </div>
+                    </div>
+                    ${content}
                     <div class="footer">Clic para ver detalle completo</div>
                 </div>
             `;

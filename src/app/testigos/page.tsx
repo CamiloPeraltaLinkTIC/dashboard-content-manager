@@ -44,6 +44,7 @@ function TestigosOverview({
     kpis, 
     deptos, 
     misiones, 
+    countriesData,
     isEditing, 
     setKpis, 
     setDeptos, 
@@ -52,6 +53,7 @@ function TestigosOverview({
     kpis: any[], 
     deptos: any[], 
     misiones: any[], 
+    countriesData: any[],
     isEditing: boolean, 
     setKpis: (k: any[]) => void, 
     setDeptos: (d: any[]) => void, 
@@ -139,6 +141,9 @@ function TestigosOverview({
                 selectedCountryId={null} 
                 selectedPlatform={null} 
                 hideIntensity={true}
+                title="Misiones Internacionales y Testigos"
+                showDetails={false}
+                mode="witnesses"
             />
           </Suspense>
           
@@ -329,6 +334,7 @@ export default function TestigosPage() {
   const [kpis, setKpis] = useState<any[]>([]);
   const [deptos, setDeptos] = useState<any[]>([]);
   const [misiones, setMisiones] = useState<any[]>([]);
+  const [countriesDataLive, setCountriesDataLive] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -338,11 +344,13 @@ export default function TestigosPage() {
     const { data: kData } = await supabase.from('content_manager_testigos_kpis').select('*').order('id');
     const { data: dData } = await supabase.from('content_manager_testigos_deptos').select('*').order('count', { ascending: false });
     const { data: mData } = await supabase.from('content_manager_testigos_misiones').select('*').order('count', { ascending: false });
+    const { data: cData } = await supabase.from('content_manager_mapa_countries').select('*');
 
     if (sData) setStrategy(sData);
     if (kData) setKpis(kData);
     if (dData) setDeptos(dData);
     if (mData) setMisiones(mData);
+    if (cData) setCountriesDataLive(cData);
     setLoading(false);
   };
 
@@ -413,6 +421,7 @@ export default function TestigosPage() {
                     kpis={kpis} 
                     deptos={deptos} 
                     misiones={misiones} 
+                    countriesData={countriesDataLive}
                     isEditing={isEditing} 
                     setKpis={setKpis}
                     setDeptos={setDeptos}
