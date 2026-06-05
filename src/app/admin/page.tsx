@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/page-header";
+import { useAuth } from "@/components/auth-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ type Kpi = {
 };
 
 export default function AdminPage() {
+  const { role } = useAuth();
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,6 +72,19 @@ export default function AdminPage() {
     const newKpis = kpis.filter((_, i) => i !== index);
     setKpis(newKpis);
   };
+
+  if (role !== "admin") {
+      return (
+          <div className="h-screen bg-[#03060d] text-white flex flex-col justify-center items-center gap-4">
+              <FontAwesomeIcon icon={faLock} className="text-6xl text-red-500 mb-2" />
+              <h1 className="text-2xl font-bold">Acceso No Autorizado</h1>
+              <p className="text-slate-400">Esta página está reservada para administradores del sistema.</p>
+              <Button onClick={() => window.location.href = '/elecciones'} className="bg-blue-600 hover:bg-blue-700">
+                  Volver al Tablero
+              </Button>
+          </div>
+      );
+  }
 
   return (
     <div className="p-6 h-screen overflow-y-auto bg-[#03060d] text-white">

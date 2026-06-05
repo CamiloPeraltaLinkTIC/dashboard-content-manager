@@ -3,6 +3,9 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { useAuth } from "./auth-provider";
+import { LogOut } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/elecciones": {
@@ -39,6 +42,7 @@ export function AppHeader() {
   const pathname = usePathname();
   const meta = pageMeta[pathname] || pageMeta["/elecciones"];
   const { state, isMobile } = useSidebar();
+  const { role, logout } = useAuth();
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
 
@@ -72,7 +76,14 @@ export function AppHeader() {
       {(state === "collapsed" || isMobile) && <SidebarTrigger />}
 
       <div className="flex-1 min-w-0">
-        <h2 className="text-sm font-semibold truncate">{meta.title}</h2>
+        <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold truncate">{meta.title}</h2>
+            {role === "admin" ? (
+                <Badge className="bg-blue-600/10 text-blue-400 border-blue-500/20 text-[8px] h-4 px-1 font-black">ADMIN</Badge>
+            ) : (
+                <Badge className="bg-slate-600/10 text-slate-400 border-white/10 text-[8px] h-4 px-1 font-black">VISOR</Badge>
+            )}
+        </div>
         <p className="text-[11px] text-muted-foreground truncate hidden sm:block">
           {meta.subtitle}
         </p>
@@ -85,8 +96,16 @@ export function AppHeader() {
         </span>
       </div>
 
+      <button 
+        onClick={logout}
+        className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 text-slate-500 hover:text-red-400 transition-colors"
+        title="Cerrar Sesión"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
+
       <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cne-blue to-cne-gold flex items-center justify-center text-[11px] font-bold text-white shrink-0">
-        CP
+        {role === "admin" ? "AD" : "VS"}
       </div>
     </header>
   );

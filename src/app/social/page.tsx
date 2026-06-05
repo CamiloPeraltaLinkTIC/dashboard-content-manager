@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { faRotate, faHeart, faComment, faSave, faPlus, faTrash, faUpload, faLock } from "@fortawesome/free-solid-svg-icons";
 import { faInstagram, faFacebook, faTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
@@ -35,6 +36,7 @@ const getPlatformConfig = (name: string) => {
 };
 
 export default function SocialPage() {
+  const { role } = useAuth();
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [feed, setFeed] = useState<any[]>([]);
@@ -186,19 +188,21 @@ export default function SocialPage() {
           <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
         </div>
         <div className="flex gap-2">
-            {!isEditing ? (
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
-                    <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
-                </Button>
-            ) : (
-                <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
-                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
-                        Cancelar
+            {role === "admin" && (
+                !isEditing ? (
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
+                        <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
                     </Button>
-                    <Button variant="default" size="sm" onClick={saveSocialData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
-                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
-                    </Button>
-                </div>
+                ) : (
+                    <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
+                        <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                            Cancelar
+                        </Button>
+                        <Button variant="default" size="sm" onClick={saveSocialData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
+                            <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                        </Button>
+                    </div>
+                )
             )}
             <Button variant="outline" size="sm" onClick={fetchSocialData} className="bg-[#0b101d] border-white/10 text-white">
                 <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/>

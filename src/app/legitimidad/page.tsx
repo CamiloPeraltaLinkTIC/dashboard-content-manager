@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
 import { TopicTabs } from "@/components/topic-tabs";
 import { Button } from "@/components/ui/button";
@@ -286,6 +287,7 @@ function LegitimidadOverview({
 
 export default function LegitimidadPage() {
   const h = pageHeaders.legitimidad;
+  const { role } = useAuth();
   const [strategy, setStrategy] = useState<any>(mockTopicData.legitimidad);
   const [indices, setIndices] = useState<any>(null);
   const [certificaciones, setCertificaciones] = useState<any[]>([]);
@@ -343,19 +345,21 @@ export default function LegitimidadPage() {
       <div className="flex justify-between items-start">
         <PageHeader badges={h.badges} title={h.title} description={h.description} />
         <div className="flex gap-2">
-            {!isEditing ? (
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
-                    <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
-                </Button>
-            ) : (
-                <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
-                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
-                        Cancelar
+            {role === "admin" && (
+                !isEditing ? (
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
+                        <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
                     </Button>
-                    <Button variant="default" size="sm" onClick={saveLegitimidadData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
-                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
-                    </Button>
-                </div>
+                ) : (
+                    <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
+                        <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                            Cancelar
+                        </Button>
+                        <Button variant="default" size="sm" onClick={saveLegitimidadData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
+                            <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                        </Button>
+                    </div>
+                )
             )}
             <Button variant="outline" size="sm" onClick={fetchLegitimidadData} className="bg-[#0b101d] border-white/10 text-white">
                 <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/>
