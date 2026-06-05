@@ -109,7 +109,7 @@ function EleccionesOverview() {
           <div className="space-y-2.5">
             {calendarioElectoral.map((item, i) => {
               const isCompleted = item.estado === "completado";
-              const isInProgress = item.estado === "en-curso";
+              const isInProgress = item.estado === "activo";
               
               return (
                 <div key={i} className="flex items-center gap-3">
