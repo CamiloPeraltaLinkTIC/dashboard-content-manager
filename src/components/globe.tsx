@@ -104,6 +104,8 @@ interface GlobeProps {
     title?: string;
     showDetails?: boolean;
     mode?: 'global' | 'witnesses';
+    sentimentColors?: Record<string, string>;
+    platformColors?: Record<string, string>;
 }
 
 export function GlobeComponent({ 
@@ -116,7 +118,10 @@ export function GlobeComponent({
     globeMarkers = [],
     title = "Conversación Global CNE Colombia",
     showDetails = true,
-    mode = 'global'
+    mode = 'global',
+    // Added props
+    sentimentColors = { positivo: "rgb(46, 184, 138)", negativo: "rgb(223, 58, 58)", neutral: "rgb(243, 177, 22)", mixto: "hsl(42 90% 52%)" },
+    platformColors = { X: "rgb(255, 255, 255)", Facebook: "rgb(24, 119, 242)", Instagram: "rgb(225, 48, 108)", TikTok: "rgb(105, 201, 208)" }
 }: GlobeProps) {
   const globeEl = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -410,54 +415,80 @@ export function GlobeComponent({
               </div>
 
               <div className="space-y-6">
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Tema Principal</p>
-                      <p className="text-sm font-semibold text-blue-400 leading-snug">{selectedData.tema}</p>
+                  <div className="bg-[#161d2b] p-4 rounded-xl">
+                      <p className="text-xs text-slate-400 mb-1">Tema principal</p>
+                      <p className="text-sm font-semibold text-blue-400">{selectedData.tema}</p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          <p className="text-2xl font-black text-yellow-500">{selectedData.volumen.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Menciones totales</p>
-                          <div className="flex items-center gap-1.5 mt-2 text-green-500 text-xs font-bold">
-                              <FontAwesomeIcon icon={faArrowTrendUp} />
-                              <span>{selectedData.pctCambio}% crecimiento</span>
-                          </div>
+                          <p className="text-xl font-bold text-yellow-500">{Number(selectedData.volumen).toLocaleString()}</p>
+                          <p className="text-xs text-slate-400">menciones hoy</p>
+                          <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {selectedData.pctCambio}%</p>
                       </div>
-                      
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Sentimiento</p>
-                              <span className="text-green-500 font-bold text-xs">Predominante</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                              <span className="text-lg font-black text-green-500 flex items-center gap-2 uppercase tracking-tighter">
-                                  Positivo <FontAwesomeIcon icon={faStar} className="text-xs" />
-                              </span>
-                          </div>
+                          <p className="text-md font-bold text-green-500 flex items-center">↑ Positivo <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1 fill-green-500"/></p>
+                          <p className="text-xs text-slate-400">Sentimiento</p>
+                          <p className="text-xs text-blue-400 mt-1 flex items-center">{selectedPlatform || 'TikTok'} <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1"/></p>
                       </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-slate-400">Distribución de sentimiento</p>
+                    <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
+                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
+                    </div>
                   </div>
 
                   <div>
-                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-3">Distribución</p>
-                      <div className="space-y-3">
-                          {Object.entries(selectedData.plataformas).map(([plat, vol]) => (
-                              <div key={plat} className="space-y-1.5">
-                                  <div className="flex justify-between text-[11px] font-bold">
-                                      <span className="text-slate-300 capitalize">{plat}</span>
-                                      <span className="text-slate-500">{((vol as number / selectedData.volumen) * 100).toFixed(0)}%</span>
-                                  </div>
-                                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                                      <div className="h-full bg-blue-500" style={{ width: `${((vol as number / selectedData.volumen) * 100)}%` }}></div>
-                                  </div>
-                              </div>
-                          ))}
-                      </div>
+                    <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
+                    <div className="space-y-2">
+                        {(() => {
+                            const platformEntries = Object.entries(selectedData.plataformas) as [string, number][];
+                            const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                            
+                            return platformEntries
+                                .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                                .map(([plat, vol]) => (
+                                    <div key={plat} className="flex items-center gap-3">
+                                        <div style={{ color: platformColors[plat] }}>
+                                            <span dangerouslySetInnerHTML={{ __html: platformIcons[plat.toLowerCase()] || "" }} />
+                                        </div>
+                                        <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                            <div 
+                                                className="h-full rounded-full transition-all duration-500" 
+                                                style={{ 
+                                                    width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, 
+                                                    background: platformColors[plat] 
+                                                }}
+                                            ></div>
+                                        </div>
+                                        <span className="text-xs font-mono w-16 text-right text-white">{(vol || 0).toLocaleString()}</span>
+                                    </div>
+                                ));
+                        })()}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-400">Palabras clave</p>
+                    <div className="flex flex-wrap gap-1">
+                        {selectedData.keywords?.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-white">{k}</span>)}
+                    </div>
                   </div>
 
-                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                      <p className="text-[10px] text-blue-400 uppercase font-black tracking-widest mb-2">Resumen Narrativo</p>
-                      <p className="text-xs text-slate-300 leading-relaxed">{selectedData.resumen}</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-400">Top hashtags</p>
+                    <div className="flex flex-wrap gap-1">
+                        {selectedData.topHashtags?.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
+                      <p className="text-slate-400 mb-1">Resumen</p>
+                      {selectedData.resumen}
                   </div>
               </div>
           </div>

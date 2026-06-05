@@ -10,7 +10,7 @@ import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
-import { faMagnifyingGlass, faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComponent), {
@@ -29,6 +29,109 @@ const platformConfig: Record<string, { color: string; icon: any; name: string }>
   TikTok: { color: "#69C9D0", icon: faTiktok, name: "TikTok" },
 };
 
+const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformColors, BrandIcon }: any) => {
+    if (!country) return null;
+    return (
+        <div className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <span className="font-mono text-2xl font-bold text-slate-400">{country.id}</span>
+                    <div>
+                        <h3 className="text-xl font-bold">{country.pais}</h3>
+                        <p className="text-xs text-slate-400">{country.updateTime}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-[#161d2b] p-4 rounded-xl">
+                <p className="text-xs text-slate-400 mb-1">Tema principal</p>
+                <p className="text-sm font-semibold text-blue-400">{country.tema}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#161d2b] p-4 rounded-xl">
+                    <p className="text-2xl font-bold text-yellow-500">{country.volumen.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400">menciones hoy</p>
+                    <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {country.pctCambio}%</p>
+                </div>
+                <div className="bg-[#161d2b] p-4 rounded-xl">
+                    <p className="text-lg font-bold text-green-500 flex items-center">↑ Positivo <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1 fill-green-500"/></p>
+                    <p className="text-xs text-slate-400">Sentimiento</p>
+                    <p className="text-xs text-blue-400 mt-1 flex items-center">{selectedPlatform || 'TikTok'} <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1"/></p>
+                </div>
+            </div>
+
+            <div className="space-y-1.5">
+                <p className="text-xs text-slate-400">Distribución de sentimiento</p>
+                <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
+                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
+                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
+                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
+                </div>
+                <div className="flex text-[10px] font-medium leading-none">
+                    <div style={{ width: `${country.sentimientoPct.positivo}%`, color: sentimentColors.positivo }} className="truncate pr-1">
+                        {country.sentimientoPct.positivo > 0 && `${country.sentimientoPct.positivo}%`}
+                    </div>
+                    <div style={{ width: `${country.sentimientoPct.neutral}%`, color: sentimentColors.neutral }} className="text-center truncate px-1">
+                        {country.sentimientoPct.neutral > 0 && `${country.sentimientoPct.neutral}%`}
+                    </div>
+                    <div style={{ width: `${country.sentimientoPct.negativo}%`, color: sentimentColors.negativo }} className="text-right truncate pl-1">
+                        {country.sentimientoPct.negativo > 0 && `${country.sentimientoPct.negativo}%`}
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
+                <div className="space-y-2">
+                    {(() => {
+                        const platformEntries = Object.entries(country.plataformas) as [string, number][];
+                        const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                        
+                        return platformEntries
+                            .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                            .map(([plat, vol]) => (
+                                <div key={plat} className="flex items-center gap-3">
+                                    <div style={{ color: platformColors[plat] }}>
+                                        <BrandIcon name={plat} className="w-5 h-5"/>
+                                    </div>
+                                    <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                        <div 
+                                            className="h-full rounded-full transition-all duration-500" 
+                                            style={{ 
+                                                width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, 
+                                                background: platformColors[plat] 
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <span className="text-xs font-mono w-16 text-right">{(vol || 0).toLocaleString()}</span>
+                                </div>
+                            ));
+                    })()}
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <p className="text-xs text-slate-400">Palabras clave</p>
+                <div className="flex flex-wrap gap-1">
+                    {country.keywords.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px]">{k}</span>)}
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <p className="text-xs text-slate-400">Top hashtags</p>
+                <div className="flex flex-wrap gap-1">
+                    {country.topHashtags.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
+                </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
+                <p className="text-slate-400 mb-1">Resumen</p>
+                {country.resumen}
+            </div>
+        </div>
+    );
+};
 const BrandIcon = ({ name, className = "w-4 h-4" }: { name: string, className?: string }) => {
   const normalizedName = name.toLowerCase();
   const key = Object.keys(platformConfig).find(k => k.toLowerCase() === normalizedName);
@@ -106,7 +209,6 @@ const countryNameToIso: Record<string, string> = {
 export default function MapaPage() {
   const [selected, setSelected] = useState<string | null>("CO");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [countriesData, setCountriesData] = useState<any[]>([]);
   const [globeMarkers, setGlobeMarkers] = useState<any[]>([]);
   const [loadingDb, setLoadingDb] = useState(true);
@@ -278,18 +380,27 @@ export default function MapaPage() {
             let addedCount = 0;
             let updatedCount = 0;
 
+            // Helper to parse numbers with thousands separators (e.g., "48.200")
+            const parseNum = (val: any) => {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                return parseInt(val.toString().replace(/\./g, '').replace(/,/g, ''), 10) || 0;
+            };
+
             data.forEach((row: any) => {
-                const id = (row['ID'] || row['id'] || '').toString().toUpperCase().trim();
+                // Determine ID (e.g., from Country Name since ID column is missing now)
+                const countryName = (row['Pais'] || row['pais'] || '').toString().trim().toLowerCase();
+                const id = countryNameToIso[countryName] || (row['ID'] || row['id'] || '').toString().toUpperCase().trim();
                 if (!id || id.length !== 2) return;
 
                 const idx = updated.findIndex(c => c.id === id);
                 const existing = idx !== -1 ? updated[idx] : null;
 
                 // Platform data
-                const tiktokVol = parseInt(row['TikTok'] || row['tiktok']) || 0;
-                const xVol = parseInt(row['X'] || row['x'] || row['Twitter'] || row['twitter']) || 0;
-                const instaVol = parseInt(row['Instagram'] || row['instagram']) || 0;
-                const fbVol = parseInt(row['Facebook'] || row['facebook']) || 0;
+                const tiktokVol = parseNum(row['TikTok']);
+                const xVol = parseNum(row['X']);
+                const instaVol = parseNum(row['Instagram']);
+                const fbVol = parseNum(row['Facebook']);
 
                 const newPlats = {
                     TikTok: tiktokVol || (existing?.plataformas?.TikTok || 0),
@@ -302,13 +413,12 @@ export default function MapaPage() {
                 const platformsArr = Object.entries(newPlats) as [string, number][];
                 const dominantPlatform = platformsArr.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 
-                const totalVolFromCols = platformsArr.reduce((a, [_, v]) => a + v, 0);
-                const totalVol = totalVolFromCols || parseInt(row['Volumen'] || row['volumen']) || (existing?.volumen || 0);
+                const totalVol = platformsArr.reduce((a, [_, v]) => a + v, 0);
 
                 // Sentiment data
-                const pos = parseInt(row['Positivo'] || row['positivo']);
-                const neu = parseInt(row['Neutral'] || row['neutral']);
-                const neg = parseInt(row['Negativo'] || row['negativo']);
+                const pos = parseInt(row['Positivo'] || 0);
+                const neu = parseInt(row['Neutral'] || 0);
+                const neg = parseInt(row['Negativo'] || 0);
 
                 const newSentimentPct = {
                     positivo: !isNaN(pos) ? pos : (existing?.sentimientoPct?.positivo || 33),
@@ -318,22 +428,22 @@ export default function MapaPage() {
 
                 const countryObj = {
                     id,
-                    pais: row['Pais'] || row['pais'] || row['Nombre'] || (existing?.pais || 'Nuevo País'),
+                    pais: row['Pais'] || row['pais'] || (existing?.pais || countryName),
                     tema: row['Tema'] || row['tema'] || (existing?.tema || 'Sin definir'),
                     volumen: totalVol,
                     plataformas: newPlats,
-                    plataformaDominante: row['PlataformaDominante'] || row['plataforma_dominante'] || dominantPlatform,
-                    sentimiento: (row['Sentimiento'] || row['sentimiento'] || existing?.sentimiento || 'neutral').toLowerCase(),
+                    plataformaDominante: dominantPlatform,
+                    sentimiento: (row['Sentimiento'] || existing?.sentimiento || 'neutral').toLowerCase(),
                     sentimientoPct: newSentimentPct,
-                    tendencia: row['Tendencia'] || row['tendencia'] || existing?.tendencia || 'estable',
-                    pctCambio: parseFloat(row['PctCambio'] || row['pct_cambio'] || existing?.pctCambio || 0),
-                    resumen: row['Resumen'] || row['resumen'] || existing?.resumen || '',
-                    topHashtags: row['Hashtags'] || row['hashtags'] ? (row['Hashtags'] || row['hashtags']).toString().split(',').map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.topHashtags || []),
-                    keywords: row['Keywords'] || row['keywords'] ? (row['Keywords'] || row['keywords']).toString().split(',').map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.keywords || []),
-                    lat: parseFloat(row['Lat'] || row['lat']) || (existing?.lat || countryCoordinates[id]?.lat || 0),
-                    lng: parseFloat(row['Lng'] || row['lng']) || (existing?.lng || countryCoordinates[id]?.lng || 0),
+                    tendencia: row['Tendencia'] || existing?.tendencia || 'estable',
+                    pctCambio: parseFloat(row['PctCambio']?.toString().replace(',', '.') || existing?.pctCambio || 0),
+                    resumen: row['Resumen'] || existing?.resumen || '',
+                    topHashtags: row['Hashtags'] ? row['Hashtags'].toString().split(/[\s,]+/).map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.topHashtags || []),
+                    keywords: row['Keywords'] ? row['Keywords'].toString().split(',').map((s:any) => s.trim()).filter((s:any) => s.length > 0) : (existing?.keywords || []),
+                    lat: existing?.lat || countryCoordinates[id]?.lat || 0,
+                    lng: existing?.lng || countryCoordinates[id]?.lng || 0,
                     emoji: existing?.emoji || getEmojiFlag(id),
-                    updateTime: row['UpdateTime'] || row['update_time'] || 'Sincronizado'
+                    updateTime: 'Sincronizado'
                 };
 
                 if (idx !== -1) {
@@ -346,7 +456,7 @@ export default function MapaPage() {
             });
 
             setCountriesData(updated);
-            alert(`✅ Excel procesado con éxito.\n\nCampos detectados: ID, País, Volumen, Plataformas (X, TikTok, FB, IG), Sentimiento (Pos, Neu, Neg), Tendencia, Resumen, Hashtags y Palabras Clave.\n\n- Países actualizados: ${updatedCount}\n- Países nuevos: ${addedCount}`);
+            alert(`✅ Excel procesado con éxito.\n\n- Países actualizados: ${updatedCount}\n- Países nuevos: ${addedCount}`);
         } catch(err) {
             console.error(err);
             alert("❌ Error procesando Excel. Verifica los nombres de las columnas.");
@@ -440,16 +550,12 @@ export default function MapaPage() {
     if (selectedPlatform) {
         data = data.filter(c => (c.plataformas as any)[selectedPlatform] > 0);
     }
-    if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        data = data.filter(c => c.pais.toLowerCase().includes(q) || c.tema.toLowerCase().includes(q));
-    }
     return data.sort((a, b) => {
         const volA = selectedPlatform ? (a.plataformas as any)[selectedPlatform] || 0 : a.volumen;
         const volB = selectedPlatform ? (b.plataformas as any)[selectedPlatform] || 0 : b.volumen;
         return volB - volA;
     });
-  }, [selectedPlatform, searchQuery, countriesData]);
+  }, [selectedPlatform, countriesData]);
 
   const maxVolume = useMemo(() => {
     if (countriesData.length === 0) return 1;
@@ -551,16 +657,6 @@ export default function MapaPage() {
         <KpiCards items={dynamicKpis} />
 
         <div className="flex gap-4 items-center mt-4">
-            <div className="relative flex-1 max-w-sm">
-                <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                <input 
-                    type="text" 
-                    placeholder="Buscar país o tema..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#0b101d] border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary"
-                />
-            </div>
             <div className="flex gap-2">
                 <Button variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${!selectedPlatform ? 'bg-primary/20 border-primary' : 'text-white'}`} onClick={() => setSelectedPlatform(null)}>Todas</Button>
                 {Object.keys(platformConfig).map(plat => (
@@ -574,110 +670,19 @@ export default function MapaPage() {
       <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
-            <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} countriesData={countriesData} globeMarkers={globeMarkers} />
+            <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} countriesData={countriesData} globeMarkers={globeMarkers} sentimentColors={sentimentColors} platformColors={platformColors} />
           </Suspense>
         </Card>
 
         <div className="flex flex-col gap-6 h-full overflow-y-auto">
           {country ? (
-            <div className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white">
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <span className="font-mono text-2xl font-bold text-slate-400">{country.id}</span>
-                        <div>
-                            <h3 className="text-xl font-bold">{country.pais}</h3>
-                            <p className="text-xs text-slate-400">{country.updateTime}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-[#161d2b] p-4 rounded-xl">
-                    <p className="text-xs text-slate-400 mb-1">Tema principal</p>
-                    <p className="text-sm font-semibold text-blue-400">{country.tema}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-[#161d2b] p-4 rounded-xl">
-                        <p className="text-2xl font-bold text-yellow-500">{country.volumen.toLocaleString()}</p>
-                        <p className="text-xs text-slate-400">menciones hoy</p>
-                        <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {country.pctCambio}%</p>
-                    </div>
-                    <div className="bg-[#161d2b] p-4 rounded-xl">
-                        <p className="text-lg font-bold text-green-500 flex items-center">↑ Positivo <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1 fill-green-500"/></p>
-                        <p className="text-xs text-slate-400">Sentimiento</p>
-                        <p className="text-xs text-blue-400 mt-1 flex items-center">{selectedPlatform || 'TikTok'} <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1"/></p>
-                    </div>
-                </div>
-
-                <div className="space-y-1.5">
-                    <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-                    <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
-                    </div>
-                    <div className="flex text-[10px] font-medium leading-none">
-                        <div style={{ width: `${country.sentimientoPct.positivo}%`, color: sentimentColors.positivo }} className="truncate pr-1">
-                            {country.sentimientoPct.positivo > 0 && `${country.sentimientoPct.positivo}%`}
-                        </div>
-                        <div style={{ width: `${country.sentimientoPct.neutral}%`, color: sentimentColors.neutral }} className="text-center truncate px-1">
-                            {country.sentimientoPct.neutral > 0 && `${country.sentimientoPct.neutral}%`}
-                        </div>
-                        <div style={{ width: `${country.sentimientoPct.negativo}%`, color: sentimentColors.negativo }} className="text-right truncate pl-1">
-                            {country.sentimientoPct.negativo > 0 && `${country.sentimientoPct.negativo}%`}
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
-                    <div className="space-y-2">
-                        {(() => {
-                            const platformEntries = Object.entries(country.plataformas) as [string, number][];
-                            const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
-                            
-                            return platformEntries
-                                .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                                .map(([plat, vol]) => (
-                                    <div key={plat} className="flex items-center gap-3">
-                                        <div style={{ color: platformColors[plat] }}>
-                                            <BrandIcon name={plat} className="w-5 h-5"/>
-                                        </div>
-                                        <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
-                                            <div 
-                                                className="h-full rounded-full transition-all duration-500" 
-                                                style={{ 
-                                                    width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, 
-                                                    background: platformColors[plat] 
-                                                }}
-                                            ></div>
-                                        </div>
-                                        <span className="text-xs font-mono w-16 text-right">{(vol || 0).toLocaleString()}</span>
-                                    </div>
-                                ));
-                        })()}
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <p className="text-xs text-slate-400">Palabras clave</p>
-                    <div className="flex flex-wrap gap-1">
-                        {country.keywords.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px]">{k}</span>)}
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <p className="text-xs text-slate-400">Top hashtags</p>
-                    <div className="flex flex-wrap gap-1">
-                        {country.topHashtags.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
-                    </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
-                    <p className="text-slate-400 mb-1">Resumen</p>
-                    {country.resumen}
-                </div>
-            </div>
+            <CountryDetail 
+                country={country} 
+                selectedPlatform={selectedPlatform} 
+                sentimentColors={sentimentColors} 
+                platformColors={platformColors} 
+                BrandIcon={BrandIcon} 
+            />
           ) : (
             <Card className="p-6 h-40 flex flex-col items-center justify-center text-center bg-[#0b101d]/50 border border-white/5 text-white">
                 <FontAwesomeIcon icon={faGlobe} className="w-8 h-8 text-blue-500 mb-2"/>
