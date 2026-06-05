@@ -20,6 +20,7 @@ import {
   testigosTabs,
   testigosPorDepartamento,
   globeMarkers,
+  countriesData,
   topicData,
 } from "@/data/mock";
 
@@ -90,6 +91,8 @@ function TestigosOverview() {
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
             <Globe 
                 className="h-full" 
+                countriesData={countriesData}
+                globeMarkers={globeMarkers}
                 onSelect={(id) => {
                     const found = globeMarkers.find(m => m.pais.toLowerCase().includes(id.toLowerCase()));
                     if (found) setSelected(found.pais);
