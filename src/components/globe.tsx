@@ -478,7 +478,6 @@ export function GlobeComponent({
         }}
         polygonSideColor={() => "rgba(0, 0, 0, 0)"}
         polygonStrokeColor={() => "#444444"}
-        polygonStrokeWidth={0.5}
         
         onPolygonHover={(d: any) => {
             setHoveredCountry(d);
