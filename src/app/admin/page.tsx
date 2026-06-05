@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTrash, faSave } from "@fortawesome/free-solid-svg-icons";
+import { faPlus, faTrash, faSave, faLock } from "@fortawesome/free-solid-svg-icons";
 
 type Kpi = {
   id?: string;
