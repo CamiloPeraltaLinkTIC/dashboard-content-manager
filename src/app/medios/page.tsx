@@ -52,6 +52,7 @@ export default function MediosPage() {
   const [loading, setLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [timeAgo, setTimeAgo] = useState<string>("AHORA");
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchMediosData = async () => {
     setLoading(true);
@@ -89,6 +90,7 @@ export default function MediosPage() {
             await supabase.from('content_manager_medios_feed').upsert(post);
         }
         alert("¡Datos guardados con éxito!");
+        setIsEditing(false);
         fetchMediosData();
     } catch (err) {
         console.error(err);
@@ -190,8 +192,22 @@ export default function MediosPage() {
           <p className="text-slate-400 text-sm">Monitoreo de prensa, radio, TV y medios digitales sobre el proceso electoral.</p>
         </div>
         <div className="flex gap-3">
+            {!isEditing ? (
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
+                    <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
+                </Button>
+            ) : (
+                <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                        Cancelar
+                    </Button>
+                    <Button variant="default" size="sm" onClick={saveMediosData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
+                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                    </Button>
+                </div>
+            )}
             <Button variant="outline" size="sm" onClick={fetchMediosData} className="bg-[#0b101d] border-white/10 text-white">
-                <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/> Actualizar
+                <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/>
             </Button>
         </div>
       </div>
@@ -199,15 +215,54 @@ export default function MediosPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           {kpis.map((kpi, i) => (
-              <Card key={kpi.id} className="bg-[#0b101d] border-white/5 p-5 rounded-2xl relative overflow-hidden">
+              <Card key={kpi.id} className="bg-[#0b101d] border-white/5 p-5 rounded-2xl relative overflow-hidden group">
                   <div className="flex justify-between items-start mb-2">
-                      <p className="text-[10px] font-bold text-slate-500 tracking-wider">{kpi.label.toUpperCase()}</p>
-                      <span className={`${kpi.delta.includes('+') ? 'text-green-500' : 'text-red-500'} text-[10px] font-bold`}>{kpi.delta}</span>
+                      <p className="text-[10px] font-bold text-slate-500 tracking-wider">
+                          {isEditing ? (
+                              <Input 
+                                value={kpi.label} 
+                                onChange={e => {
+                                    const up = [...profiles];
+                                    const idx = up.findIndex(pr => pr.id === kpi.id);
+                                    up[idx].label = e.target.value;
+                                    setProfiles(up);
+                                }} 
+                                className="h-4 bg-transparent border-none p-0 text-[10px] font-bold uppercase"
+                              />
+                          ) : kpi.label.toUpperCase()}
+                      </p>
+                      {isEditing ? (
+                          <Input 
+                            value={kpi.delta} 
+                            onChange={e => {
+                                const up = [...profiles];
+                                const idx = up.findIndex(pr => pr.id === kpi.id);
+                                up[idx].delta = e.target.value;
+                                setProfiles(up);
+                            }} 
+                            className="h-4 w-12 bg-transparent border-none p-0 text-[10px] font-bold text-right"
+                          />
+                      ) : (
+                          <span className={`${kpi.delta.includes('+') ? 'text-green-500' : 'text-red-500'} text-[10px] font-bold`}>{kpi.delta}</span>
+                      )}
                   </div>
-                  <p className="text-3xl font-bold text-blue-500">{kpi.value}</p>
+                  {isEditing ? (
+                      <Input 
+                        value={kpi.value} 
+                        onChange={e => {
+                            const up = [...profiles];
+                            const idx = up.findIndex(pr => pr.id === kpi.id);
+                            up[idx].value = e.target.value;
+                            setProfiles(up);
+                        }} 
+                        className="h-8 text-2xl font-bold text-blue-500 bg-white/5 border-white/10 mb-2"
+                      />
+                  ) : (
+                      <p className="text-3xl font-bold text-blue-500">{kpi.value}</p>
+                  )}
                   <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-800">
                       <div 
-                          className="h-full" 
+                          className="h-full transition-all duration-1000" 
                           style={{ 
                               width: '40%', 
                               background: i === 0 ? '#3b82f6' : i === 1 ? '#e8a817' : i === 2 ? '#2eb88a' : '#3b82f6' 
@@ -256,23 +311,66 @@ export default function MediosPage() {
             <h3 className="text-sm font-semibold mb-6 text-slate-200 uppercase tracking-widest">Top Medios</h3>
             <div className="space-y-4">
                 {topMedios.map((m, i) => (
-                    <div key={m.id} className="flex items-center gap-3">
+                    <div key={m.id} className="flex items-center gap-3 group relative">
                         <div className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[10px] font-black" style={i < 3 ? { color: '#fbbf24' } : { color: '#475569' }}>
                             {i + 1}
                         </div>
                         <div className="flex items-center gap-2 w-32 shrink-0">
                             <FontAwesomeIcon icon={getMediaIcon(m.label)} className="w-3.5 h-3.5 text-blue-500" />
-                            <span className="text-xs font-bold truncate text-slate-100">{m.label}</span>
+                            {isEditing ? (
+                                <Input 
+                                    value={m.label} 
+                                    onChange={e => {
+                                        const up = [...profiles];
+                                        const idx = up.findIndex(pr => pr.id === m.id);
+                                        up[idx].label = e.target.value;
+                                        setProfiles(up);
+                                    }} 
+                                    className="h-6 text-xs font-bold bg-white/5 border-white/10 p-1" 
+                                />
+                            ) : (
+                                <span className="text-xs font-bold truncate text-slate-100">{m.label}</span>
+                            )}
                         </div>
                         <div className="flex-1 space-y-1">
                             <div className="flex justify-between text-[9px] font-bold">
-                                <span className="text-slate-500">{m.notas} notas</span>
-                                <span className="text-green-500">{m.sentimiento}% pos</span>
+                                {isEditing ? (
+                                    <div className="flex gap-1">
+                                        <Input type="number" value={m.notas} onChange={e => {
+                                            const up = [...profiles];
+                                            const idx = up.findIndex(pr => pr.id === m.id);
+                                            up[idx].notas = parseInt(e.target.value);
+                                            setProfiles(up);
+                                        }} className="h-4 w-8 bg-transparent border-none p-0 text-[9px]" />
+                                        <span className="text-slate-500">notas</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-500">{m.notas} notas</span>
+                                )}
+
+                                {isEditing ? (
+                                    <div className="flex gap-1">
+                                        <Input type="number" value={m.sentimiento} onChange={e => {
+                                            const up = [...profiles];
+                                            const idx = up.findIndex(pr => pr.id === m.id);
+                                            up[idx].sentimiento = parseInt(e.target.value);
+                                            setProfiles(up);
+                                        }} className="h-4 w-8 bg-transparent border-none p-0 text-[9px] text-right" />
+                                        <span className="text-green-500">% pos</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-green-500">{m.sentimiento}% pos</span>
+                                )}
                             </div>
                             <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500" style={{ width: `${(m.notas / topMedios[0].notas) * 100}%` }} />
+                                <div className="h-full bg-blue-500" style={{ width: `${(m.notas / (topMedios[0]?.notas || 1)) * 100}%` }} />
                             </div>
                         </div>
+                        {isEditing && (
+                            <Button variant="ghost" size="sm" onClick={() => setProfiles(profiles.filter(p => p.id !== m.id))} className="h-6 w-6 p-0 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+                                <FontAwesomeIcon icon={faTrash} className="w-2.5 h-2.5" />
+                            </Button>
+                        )}
                     </div>
                 ))}
             </div>
@@ -287,24 +385,77 @@ export default function MediosPage() {
                 <h1 className="text-xl font-bold">Últimas Noticias y Titulares</h1>
                 <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● ACTUALIZADO</span>
             </div>
+            {isEditing && (
+                <Button size="sm" variant="ghost" onClick={() => setFeed([{ medio: 'Medio', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])} className="text-[10px] font-black uppercase text-blue-400">
+                    <FontAwesomeIcon icon={faPlus} className="mr-1" /> Nueva Noticia
+                </Button>
+            )}
         </div>
 
         <div className="space-y-2">
-            {feed.map((post) => (
-                <div key={post.id} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group">
+            {feed.map((post, idx) => (
+                <div key={post.id || idx} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group relative">
                     <div className="p-2 rounded-lg bg-white/5 text-blue-400">
                         <FontAwesomeIcon icon={getMediaIcon(post.medio)} className="w-5 h-5"/>
                     </div>
-                    <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-sm text-blue-400">{post.medio.toUpperCase()}</span>
-                            <span className="text-xs text-slate-500">{post.tiempo}</span>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {isEditing ? (
+                                <>
+                                    <Input value={post.medio} onChange={e => {
+                                        const up = [...feed];
+                                        up[idx].medio = e.target.value;
+                                        setFeed(up);
+                                    }} className="h-6 text-xs font-bold text-blue-400 bg-white/5 border-white/10 w-32" />
+                                    <Input value={post.tiempo} onChange={e => {
+                                        const up = [...feed];
+                                        up[idx].tiempo = e.target.value;
+                                        setFeed(up);
+                                    }} className="h-6 text-xs bg-white/5 border-white/10 w-24" />
+                                    <select 
+                                        value={post.tipo} 
+                                        onChange={e => {
+                                            const up = [...feed];
+                                            up[idx].tipo = e.target.value;
+                                            setFeed(up);
+                                        }}
+                                        className="bg-[#161d2b] text-[10px] font-bold rounded p-1 border-none outline-none"
+                                    >
+                                        <option value="positivo">Positivo</option>
+                                        <option value="neutral">Neutral</option>
+                                        <option value="negativo">Negativo</option>
+                                    </select>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="font-bold text-sm text-blue-400">{post.medio.toUpperCase()}</span>
+                                    <span className="text-xs text-slate-500">{post.tiempo}</span>
+                                </>
+                            )}
                         </div>
-                        <p className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">{post.texto}</p>
+                        {isEditing ? (
+                            <textarea 
+                                value={post.texto} 
+                                onChange={e => {
+                                    const up = [...feed];
+                                    up[idx].texto = e.target.value;
+                                    setFeed(up);
+                                }}
+                                className="w-full bg-transparent border-none p-0 text-sm text-slate-300 outline-none resize-none min-h-[40px]"
+                            />
+                        ) : (
+                            <p className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">{post.texto}</p>
+                        )}
                     </div>
-                    <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.tipo === 'positivo' ? 'bg-green-500/10 text-green-500' : post.tipo === 'negativo' ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-slate-500'}`}>
-                        {post.tipo}
-                    </div>
+                    {isEditing ? (
+                        <Button variant="ghost" size="sm" onClick={() => setFeed(feed.filter((_, i) => i !== idx))} className="text-red-500 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                        </Button>
+                    ) : (
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.tipo === 'positivo' ? 'bg-green-500/10 text-green-500' : post.tipo === 'negativo' ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                            {post.tipo}
+                        </div>
+                    )}
                 </div>
             ))}
         </div>

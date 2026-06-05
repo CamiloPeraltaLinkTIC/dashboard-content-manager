@@ -42,7 +42,19 @@ import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
 import * as XLSX from 'xlsx';
 
-function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }) {
+function QuirozOverview({ 
+    data, 
+    apariciones, 
+    isEditing, 
+    setProfile, 
+    setApariciones 
+}: { 
+    data: any, 
+    apariciones: any[], 
+    isEditing: boolean, 
+    setProfile: (p: any) => void, 
+    setApariciones: (a: any[]) => void 
+}) {
   const q = data || {
       nombre: "Cargando...", cargo: "", desde: "", partido: "", declaraciones: 0, apariciones: 0, cuentas_verificadas: 0, entrevistas_tv: 0, menciones_totales: 0, sentimiento_positivo: 0, sentimiento_neutral: 0, sentimiento_negativo: 0, semanal_menciones: []
   };
@@ -61,36 +73,66 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
         {/* Profile Card */}
         <div className="kpi-card p-5 flex flex-col items-center gap-3 text-center rounded-2xl">
           <div 
-            className="w-20 h-20 rounded-full flex items-center justify-center" 
+            className="w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500" 
             style={{ 
-              background: "linear-gradient(135deg, rgb(11, 65, 132), rgb(155, 111, 8))", 
-              border: "3px solid rgb(243, 177, 22)" 
+              background: isEditing ? "linear-gradient(135deg, #1270e2, #2eb88a)" : "linear-gradient(135deg, rgb(11, 65, 132), rgb(155, 111, 8))", 
+              border: `3px solid ${isEditing ? "#2eb88a" : "rgb(243, 177, 22)"}`,
+              transform: isEditing ? "scale(1.05)" : "scale(1)"
             }}
           >
-            <FontAwesomeIcon icon={faUser} className="text-2xl" style={{ color: "rgb(243, 177, 22)" }} />
+            <FontAwesomeIcon icon={faUser} className="text-2xl" style={{ color: isEditing ? "white" : "rgb(243, 177, 22)" }} />
           </div>
-          <div>
-            <div className="font-bold text-lg">{q.nombre}</div>
-            <div className="text-sm text-muted-foreground mt-0.5">{q.cargo}</div>
-            <div className="text-xs text-muted-foreground mt-1">Desde {q.desde} · {q.partido}</div>
+          <div className="w-full space-y-1">
+            {isEditing ? (
+                <div className="space-y-2 mb-2">
+                    <Input value={q.nombre} onChange={e => setProfile({...q, nombre: e.target.value})} className="h-8 text-center font-bold bg-white/5 border-blue-500/30" />
+                    <Input value={q.cargo} onChange={e => setProfile({...q, cargo: e.target.value})} className="h-6 text-center text-xs bg-white/5 border-white/10" />
+                    <div className="flex gap-2">
+                        <Input value={q.desde} onChange={e => setProfile({...q, desde: e.target.value})} className="h-6 text-center text-[10px] bg-white/5 border-white/10" />
+                        <Input value={q.partido} onChange={e => setProfile({...q, partido: e.target.value})} className="h-6 text-center text-[10px] bg-white/5 border-white/10" />
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="font-bold text-lg">{q.nombre}</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{q.cargo}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Desde {q.desde} · {q.partido}</div>
+                </>
+            )}
           </div>
           <div className="w-full h-px bg-white/5 my-2"></div>
           <div className="grid grid-cols-2 gap-3 w-full">
-            <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>{q.declaraciones}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Declaraciones públicas</div>
+            <div className="text-center group">
+              {isEditing ? (
+                  <Input type="number" value={q.declaraciones} onChange={e => setProfile({...q, declaraciones: parseInt(e.target.value)})} className="h-8 text-center font-bold bg-white/5 border-blue-500/20" />
+              ) : (
+                  <div className="text-xl font-bold transition-all group-hover:scale-110" style={{ color: "rgb(43, 130, 238)" }}>{q.declaraciones}</div>
+              )}
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Declaraciones</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: "rgb(243, 177, 22)" }}>{q.apariciones}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Apariciones en medios</div>
+            <div className="text-center group">
+              {isEditing ? (
+                  <Input type="number" value={q.apariciones} onChange={e => setProfile({...q, apariciones: parseInt(e.target.value)})} className="h-8 text-center font-bold bg-white/5 border-orange-500/20" />
+              ) : (
+                  <div className="text-xl font-bold transition-all group-hover:scale-110" style={{ color: "rgb(243, 177, 22)" }}>{q.apariciones}</div>
+              )}
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Medios</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>{q.cuentas_verificadas}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Cuentas verificadas</div>
+            <div className="text-center group">
+              {isEditing ? (
+                  <Input type="number" value={q.cuentas_verificadas} onChange={e => setProfile({...q, cuentas_verificadas: parseInt(e.target.value)})} className="h-8 text-center font-bold bg-white/5 border-blue-500/20" />
+              ) : (
+                  <div className="text-xl font-bold transition-all group-hover:scale-110" style={{ color: "rgb(43, 130, 238)" }}>{q.cuentas_verificadas}</div>
+              )}
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Verificadas</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl font-bold" style={{ color: "rgb(243, 177, 22)" }}>{q.entrevistas_tv}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">Entrevistas en TV</div>
+            <div className="text-center group">
+              {isEditing ? (
+                  <Input type="number" value={q.entrevistas_tv} onChange={e => setProfile({...q, entrevistas_tv: parseInt(e.target.value)})} className="h-8 text-center font-bold bg-white/5 border-orange-500/20" />
+              ) : (
+                  <div className="text-xl font-bold transition-all group-hover:scale-110" style={{ color: "rgb(243, 177, 22)" }}>{q.entrevistas_tv}</div>
+              )}
+              <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">TV</div>
             </div>
           </div>
         </div>
@@ -98,12 +140,15 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
         {/* Sentiment Card */}
         <div className="kpi-card p-4 flex flex-col rounded-2xl">
           <h3 className="text-sm font-semibold mb-1">Sentimiento de Menciones</h3>
-          <p className="text-xs text-muted-foreground mb-3">Total: {q.menciones_totales?.toLocaleString()} menciones</p>
           <div className="flex-1 flex flex-col justify-center space-y-3">
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground text-xs">Positivo</span>
-                <span className="font-bold" style={{ color: "rgb(46, 184, 138)" }}>{q.sentimiento_positivo}%</span>
+                {isEditing ? (
+                    <Input type="number" value={q.sentimiento_positivo} onChange={e => setProfile({...q, sentimiento_positivo: parseInt(e.target.value)})} className="h-6 w-16 text-right text-xs bg-white/5 border-green-500/30" />
+                ) : (
+                    <span className="font-bold" style={{ color: "rgb(46, 184, 138)" }}>{q.sentimiento_positivo}%</span>
+                )}
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-[#2eb88a]" style={{ width: `${q.sentimiento_positivo}%` }}></div>
@@ -112,7 +157,11 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground text-xs">Neutral</span>
-                <span className="font-bold" style={{ color: "rgb(243, 177, 22)" }}>{q.sentimiento_neutral}%</span>
+                {isEditing ? (
+                    <Input type="number" value={q.sentimiento_neutral} onChange={e => setProfile({...q, sentimiento_neutral: parseInt(e.target.value)})} className="h-6 w-16 text-right text-xs bg-white/5 border-yellow-500/30" />
+                ) : (
+                    <span className="font-bold" style={{ color: "rgb(243, 177, 22)" }}>{q.sentimiento_neutral}%</span>
+                )}
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-[#f3b116]" style={{ width: `${q.sentimiento_neutral}%` }}></div>
@@ -121,7 +170,11 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground text-xs">Negativo</span>
-                <span className="font-bold" style={{ color: "rgb(223, 58, 58)" }}>{q.sentimiento_negativo}%</span>
+                {isEditing ? (
+                    <Input type="number" value={q.sentimiento_negativo} onChange={e => setProfile({...q, sentimiento_negativo: parseInt(e.target.value)})} className="h-6 w-16 text-right text-xs bg-white/5 border-red-500/30" />
+                ) : (
+                    <span className="font-bold" style={{ color: "rgb(223, 58, 58)" }}>{q.sentimiento_negativo}%</span>
+                )}
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-[#df3a3a]" style={{ width: `${q.sentimiento_negativo}%` }}></div>
@@ -129,7 +182,11 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
             </div>
           </div>
           <div className="mt-4 p-3 rounded-lg text-center" style={{ background: "rgb(25, 31, 46)" }}>
-            <div className="text-2xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>{q.menciones_totales?.toLocaleString()}</div>
+            {isEditing ? (
+                <Input type="number" value={q.menciones_totales} onChange={e => setProfile({...q, menciones_totales: parseInt(e.target.value)})} className="h-8 text-center text-xl font-bold bg-white/5 border-blue-500/30" />
+            ) : (
+                <div className="text-2xl font-bold" style={{ color: "rgb(43, 130, 238)" }}>{q.menciones_totales?.toLocaleString()}</div>
+            )}
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">menciones totales 2026</div>
           </div>
         </div>
@@ -165,49 +222,104 @@ function QuirozOverview({ data, apariciones }: { data: any, apariciones: any[] }
 
       {/* Media Appearances Card */}
       <div className="kpi-card p-4 rounded-2xl">
-        <div className="flex items-center gap-2 mb-3">
-          <FontAwesomeIcon icon={faMicrophone} className="text-blue-500" />
-          <h3 className="text-sm font-semibold">Apariciones Recientes en Medios</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Medio</th>
-                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Fecha</th>
-                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Tema</th>
-                <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4 text-right">Sentimiento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apariciones.map((a, i) => (
-                <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                  <td className="py-2.5 pr-4">
-                    <div className="flex items-center gap-1.5">
-                      <span style={{ color: "rgb(43, 130, 238)" }}>
-                        <FontAwesomeIcon icon={getMediaIcon(a.medio)} className="w-3 h-3" />
-                      </span>
-                      <span className="font-medium">{a.medio}</span>
-                    </div>
-                  </td>
-                  <td className="py-2.5 pr-4 text-muted-foreground text-xs">{a.fecha}</td>
-                  <td className="py-2.5 pr-4 text-slate-300">{a.tema}</td>
-                  <td className="py-2.5 text-right">
-                    <span 
-                        className="px-2 py-0.5 rounded-full text-[10px] font-bold" 
-                        style={{ 
-                            color: a.sentimiento === "positivo" ? "rgb(46, 184, 138)" : a.sentimiento === "negativo" ? "rgb(223, 58, 58)" : "rgb(243, 177, 22)",
-                            background: "rgba(255,255,255,0.03)"
-                        }}
-                    >
-                        {a.sentimiento?.charAt(0).toUpperCase() + a.sentimiento?.slice(1)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <FontAwesomeIcon icon={faMicrophone} className="text-blue-500" />
+                <h3 className="text-sm font-semibold">Apariciones Recientes en Medios</h3>
+              </div>
+              {isEditing && (
+                  <Button size="sm" variant="ghost" onClick={() => setApariciones([{ medio: 'Nuevo Medio', tema: '', fecha: 'Hoy', sentimiento: 'neutral' }, ...apariciones])} className="text-[10px] font-black uppercase text-blue-400">
+                    <FontAwesomeIcon icon={faPlus} className="mr-1" /> Añadir Fila
+                  </Button>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Medio</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Fecha</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4">Tema</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium py-2 pr-4 text-right">Sentimiento</th>
+                    {isEditing && <th className="w-10"></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {apariciones.map((a, i) => (
+                    <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                      <td className="py-2.5 pr-4">
+                        {isEditing ? (
+                            <Input value={a.medio} onChange={e => {
+                                const up = [...apariciones];
+                                up[i].medio = e.target.value;
+                                setApariciones(up);
+                            }} className="h-7 text-xs bg-white/5 border-white/10" />
+                        ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ color: "rgb(43, 130, 238)" }}>
+                                <FontAwesomeIcon icon={getMediaIcon(a.medio)} className="w-3 h-3" />
+                              </span>
+                              <span className="font-medium">{a.medio}</span>
+                            </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-4 text-muted-foreground text-xs">
+                        {isEditing ? (
+                            <Input value={a.fecha} onChange={e => {
+                                const up = [...apariciones];
+                                up[i].fecha = e.target.value;
+                                setApariciones(up);
+                            }} className="h-7 text-xs bg-white/5 border-white/10" />
+                        ) : a.fecha}
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-300">
+                        {isEditing ? (
+                            <Input value={a.tema} onChange={e => {
+                                const up = [...apariciones];
+                                up[i].tema = e.target.value;
+                                setApariciones(up);
+                            }} className="h-7 text-xs bg-white/5 border-white/10" />
+                        ) : a.tema}
+                      </td>
+                      <td className="py-2.5 text-right">
+                        {isEditing ? (
+                            <select 
+                                value={a.sentimiento} 
+                                onChange={e => {
+                                    const up = [...apariciones];
+                                    up[i].sentimiento = e.target.value;
+                                    setApariciones(up);
+                                }}
+                                className="bg-[#0b101d] text-xs border border-white/10 rounded px-1 h-7 outline-none"
+                            >
+                                <option value="positivo">Positivo</option>
+                                <option value="neutral">Neutral</option>
+                                <option value="negativo">Negativo</option>
+                            </select>
+                        ) : (
+                            <span 
+                                className="px-2 py-0.5 rounded-full text-[10px] font-bold" 
+                                style={{ 
+                                    color: a.sentimiento === "positivo" ? "rgb(46, 184, 138)" : a.sentimiento === "negativo" ? "rgb(223, 58, 58)" : "rgb(243, 177, 22)",
+                                    background: "rgba(255,255,255,0.03)"
+                                }}
+                            >
+                                {a.sentimiento?.charAt(0).toUpperCase() + a.sentimiento?.slice(1)}
+                            </span>
+                        )}
+                      </td>
+                      {isEditing && (
+                          <td className="text-right">
+                              <Button variant="ghost" size="sm" onClick={() => setApariciones(apariciones.filter((_, idx) => idx !== i))} className="h-7 w-7 p-0 text-red-500">
+                                  <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                              </Button>
+                          </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
       </div>
     </div>
   );
@@ -220,6 +332,7 @@ export default function QuirozPage() {
   const [apariciones, setApariciones] = useState<any[]>([]);
   const [strategy, setStrategy] = useState<any>(mockTopicData.quiroz);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchQuirozData = async () => {
     setLoading(true);
@@ -245,6 +358,7 @@ export default function QuirozPage() {
         }
         await supabase.from('content_manager_quiroz_strategy').upsert(strategy);
         alert("¡Estrategia de Cristian Quiroz guardada!");
+        setIsEditing(false);
         fetchQuirozData();
     } catch (err) {
         console.error(err);
@@ -320,21 +434,40 @@ export default function QuirozPage() {
     <div className="p-6 h-screen overflow-y-auto bg-[#03060d] text-white relative">
       <div className="flex justify-between items-start mb-2">
         <PageHeader badges={h.badges} title={h.title} description={h.description} />
-        <Button variant="ghost" size="sm" onClick={fetchQuirozData} className="text-slate-500 hover:text-white">
-            <FontAwesomeIcon icon={faRotate} className="mr-2" /> Refrescar
-        </Button>
+        <div className="flex gap-2">
+            {!isEditing ? (
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
+                    <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
+                </Button>
+            ) : (
+                <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                        Cancelar
+                    </Button>
+                    <Button variant="default" size="sm" onClick={saveQuirozData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
+                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                    </Button>
+                </div>
+            )}
+            <Button variant="ghost" size="sm" onClick={fetchQuirozData} className="text-slate-500 hover:text-white">
+                <FontAwesomeIcon icon={faRotate} className="mr-2" /> 
+            </Button>
+        </div>
       </div>
 
       <div className="mt-6">
         <TopicTabs
             tabs={quirozTabs}
-            overviewContent={<QuirozOverview data={profile} apariciones={apariciones} />}
+            overviewContent={<QuirozOverview data={profile} apariciones={apariciones} isEditing={isEditing} setProfile={setProfile} setApariciones={setApariciones} />}
             narrativa={strategy.narrativa}
-            pilares={mockTopicData.quiroz.pilares}
+            pilares={strategy.pilares}
             noticias={strategy.noticias}
             contenido={strategy.contenido}
             conversacion={strategy.conversacion}
             pauta={strategy.pauta}
+            isEditing={isEditing}
+            setStrategy={setStrategy}
+            strategy={strategy}
         />
       </div>
 

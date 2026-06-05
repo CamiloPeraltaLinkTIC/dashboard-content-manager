@@ -44,6 +44,7 @@ export default function SocialPage() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [pass, setPass] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchSocialData = async () => {
     setLoading(true);
@@ -84,6 +85,7 @@ export default function SocialPage() {
             const { error } = await supabase.from('content_manager_social_feed').upsert(post);
         }
         alert("¡Datos guardados con éxito!");
+        setIsEditing(false);
         fetchSocialData();
     } catch (err) {
         console.error(err);
@@ -183,9 +185,25 @@ export default function SocialPage() {
           <h1 className="text-3xl font-bold mb-1">Conversación en Redes Sociales</h1>
           <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchSocialData} className="bg-[#0b101d] border-white/10 text-white">
-            <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/> Actualizar
-        </Button>
+        <div className="flex gap-2">
+            {!isEditing ? (
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
+                    <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
+                </Button>
+            ) : (
+                <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                        Cancelar
+                    </Button>
+                    <Button variant="default" size="sm" onClick={saveSocialData} className="bg-green-600 hover:bg-green-700 text-white font-bold px-4">
+                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                    </Button>
+                </div>
+            )}
+            <Button variant="outline" size="sm" onClick={fetchSocialData} className="bg-[#0b101d] border-white/10 text-white">
+                <FontAwesomeIcon icon={faRotate} className={`mr-2 ${loading ? 'animate-spin' : ''}`}/>
+            </Button>
+        </div>
       </div>
 
       {/* Platform Cards */}
@@ -203,15 +221,81 @@ export default function SocialPage() {
                             </div>
                             <div>
                                 <h3 className="font-bold text-sm">{p.name}</h3>
-                                <p className="text-[10px] text-slate-400">{stats.seguidores} seguidores</p>
+                                {isEditing ? (
+                                    <Input 
+                                        value={stats.seguidores} 
+                                        onChange={e => {
+                                            const up = [...profiles];
+                                            const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                            up[idx].seguidores = e.target.value;
+                                            setProfiles(up);
+                                        }} 
+                                        className="h-5 text-[10px] bg-white/5 border-white/10 p-1 w-20" 
+                                    />
+                                ) : (
+                                    <p className="text-[10px] text-slate-400">{stats.seguidores} seguidores</p>
+                                )}
                             </div>
                         </div>
-                        <span className="text-green-500 text-xs">● {stats.sentimiento}% pos</span>
+                        {isEditing ? (
+                            <div className="flex items-center gap-1">
+                                <Input 
+                                    type="number" 
+                                    value={stats.sentimiento} 
+                                    onChange={e => {
+                                        const up = [...profiles];
+                                        const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                        up[idx].sentimiento = parseInt(e.target.value);
+                                        setProfiles(up);
+                                    }} 
+                                    className="h-5 text-[10px] bg-white/5 border-green-500/30 p-1 w-10 text-green-500" 
+                                />
+                                <span className="text-[10px] text-green-500">%</span>
+                            </div>
+                        ) : (
+                            <span className="text-green-500 text-xs">● {stats.sentimiento}% pos</span>
+                        )}
                     </div>
                     <div className="flex justify-between text-center mb-4">
-                        <div><p className="text-lg font-bold">{stats.interacciones >= 1000 ? (stats.interacciones/1000).toFixed(1)+'K' : stats.interacciones}</p><p className="text-[10px] text-slate-400">Interacciones</p></div>
-                        <div><p className="text-lg font-bold">{stats.alcance}</p><p className="text-[10px] text-slate-400">Alcance</p></div>
-                        <div><p className="text-lg font-bold">{stats.posts}</p><p className="text-[10px] text-slate-400">Posts</p></div>
+                        <div>
+                            {isEditing ? (
+                                <Input type="number" value={stats.interacciones} onChange={e => {
+                                    const up = [...profiles];
+                                    const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                    up[idx].interacciones = parseInt(e.target.value);
+                                    setProfiles(up);
+                                }} className="h-6 text-xs text-center bg-white/5 border-white/10" />
+                            ) : (
+                                <p className="text-lg font-bold">{stats.interacciones >= 1000 ? (stats.interacciones/1000).toFixed(1)+'K' : stats.interacciones}</p>
+                            )}
+                            <p className="text-[10px] text-slate-400">Interacciones</p>
+                        </div>
+                        <div>
+                            {isEditing ? (
+                                <Input value={stats.alcance} onChange={e => {
+                                    const up = [...profiles];
+                                    const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                    up[idx].alcance = e.target.value;
+                                    setProfiles(up);
+                                }} className="h-6 text-xs text-center bg-white/5 border-white/10" />
+                            ) : (
+                                <p className="text-lg font-bold">{stats.alcance}</p>
+                            )}
+                            <p className="text-[10px] text-slate-400">Alcance</p>
+                        </div>
+                        <div>
+                            {isEditing ? (
+                                <Input type="number" value={stats.posts} onChange={e => {
+                                    const up = [...profiles];
+                                    const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                    up[idx].posts = parseInt(e.target.value);
+                                    setProfiles(up);
+                                }} className="h-6 text-xs text-center bg-white/5 border-white/10" />
+                            ) : (
+                                <p className="text-lg font-bold">{stats.posts}</p>
+                            )}
+                            <p className="text-[10px] text-slate-400">Posts</p>
+                        </div>
                     </div>
                     <div className="h-16 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
@@ -222,10 +306,56 @@ export default function SocialPage() {
                     </div>
                     <div className="text-xs">
                         <p className="text-slate-400 mb-1">Top post</p>
-                        <p className="font-semibold mb-2 line-clamp-2">{stats.top_posts?.[0]?.texto || 'Sin datos'}</p>
+                        {isEditing ? (
+                            <textarea 
+                                value={stats.top_posts?.[0]?.texto || ''} 
+                                onChange={e => {
+                                    const up = [...profiles];
+                                    const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                    if (!up[idx].top_posts) up[idx].top_posts = [{}];
+                                    up[idx].top_posts[0].texto = e.target.value;
+                                    setProfiles(up);
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded p-1 text-[10px] text-white resize-none min-h-[40px] outline-none"
+                            />
+                        ) : (
+                            <p className="font-semibold mb-2 line-clamp-2">{stats.top_posts?.[0]?.texto || 'Sin datos'}</p>
+                        )}
                         <div className="flex gap-3 text-slate-500 text-[10px]">
-                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faHeart} className="w-3 h-3 text-red-500/50"/>{stats.top_posts?.[0]?.likes || 0}</span>
-                            <span className="flex items-center gap-1"><FontAwesomeIcon icon={faComment} className="w-3 h-3 text-blue-500/50"/>{stats.top_posts?.[0]?.comments || 0}</span>
+                            <span className="flex items-center gap-1">
+                                <FontAwesomeIcon icon={faHeart} className="w-3 h-3 text-red-500/50"/>
+                                {isEditing ? (
+                                    <Input 
+                                        type="number" 
+                                        value={stats.top_posts?.[0]?.likes || 0} 
+                                        onChange={e => {
+                                            const up = [...profiles];
+                                            const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                            if (!up[idx].top_posts) up[idx].top_posts = [{}];
+                                            up[idx].top_posts[0].likes = parseInt(e.target.value);
+                                            setProfiles(up);
+                                        }}
+                                        className="h-4 w-10 bg-transparent border-none p-0 text-[10px] font-bold"
+                                    />
+                                ) : (stats.top_posts?.[0]?.likes || 0)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <FontAwesomeIcon icon={faComment} className="w-3 h-3 text-blue-500/50"/>
+                                {isEditing ? (
+                                    <Input 
+                                        type="number" 
+                                        value={stats.top_posts?.[0]?.comments || 0} 
+                                        onChange={e => {
+                                            const up = [...profiles];
+                                            const idx = up.findIndex(pr => pr.id === key.toLowerCase());
+                                            if (!up[idx].top_posts) up[idx].top_posts = [{}];
+                                            up[idx].top_posts[0].comments = parseInt(e.target.value);
+                                            setProfiles(up);
+                                        }}
+                                        className="h-4 w-10 bg-transparent border-none p-0 text-[10px] font-bold"
+                                    />
+                                ) : (stats.top_posts?.[0]?.comments || 0)}
+                            </span>
                         </div>
                     </div>
                 </Card>
@@ -241,6 +371,11 @@ export default function SocialPage() {
                 <h1 className="text-xl font-bold">Feed en Vivo</h1>
                 <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● EN TIEMPO REAL</span>
             </div>
+            {isEditing && (
+                <Button size="sm" variant="ghost" className="text-[10px] font-black uppercase text-blue-400" onClick={() => setFeed([{ red: 'X', usuario: 'Nuevo', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])}>
+                    <FontAwesomeIcon icon={faPlus} className="mr-1" /> Nuevo Post
+                </Button>
+            )}
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -257,24 +392,94 @@ export default function SocialPage() {
         </div>
 
         <div className="space-y-2">
-            {filteredFeed.map((post) => {
+            {filteredFeed.map((post, idx) => {
                 const p = getPlatformConfig(post.red);
                 return (
-                    <div key={post.id} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group">
+                    <div key={post.id || idx} className="bg-[#05080f] border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:border-white/10 transition-colors group relative">
                         <div className="p-2 rounded-lg bg-white/5" style={{ color: p?.color || 'white' }}>
                             <BrandIcon name={post.red} className="w-5 h-5"/>
                         </div>
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="font-bold text-sm">@{post.usuario}</span>
-                                <span className="text-xs text-slate-500">{post.tiempo}</span>
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${post.tipo === 'positivo' ? 'text-green-500' : post.tipo === 'negativo' ? 'text-red-500' : 'text-yellow-500'}`}>
-                                    {post.tipo}
-                                </span>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                {isEditing ? (
+                                    <>
+                                        <select 
+                                            value={post.red} 
+                                            onChange={e => {
+                                                const up = [...feed];
+                                                up[idx].red = e.target.value;
+                                                setFeed(up);
+                                            }}
+                                            className="bg-[#161d2b] text-[10px] font-bold rounded p-1 border-none outline-none"
+                                        >
+                                            <option value="X">X</option>
+                                            <option value="Instagram">IG</option>
+                                            <option value="Facebook">FB</option>
+                                            <option value="TikTok">TT</option>
+                                        </select>
+                                        <Input 
+                                            value={post.usuario} 
+                                            onChange={e => {
+                                                const up = [...feed];
+                                                up[idx].usuario = e.target.value;
+                                                setFeed(up);
+                                            }} 
+                                            className="h-6 text-xs font-bold bg-white/5 border-white/10 w-24" 
+                                        />
+                                        <Input 
+                                            value={post.tiempo} 
+                                            onChange={e => {
+                                                const up = [...feed];
+                                                up[idx].tiempo = e.target.value;
+                                                setFeed(up);
+                                            }} 
+                                            className="h-6 text-[10px] bg-white/5 border-white/10 w-20" 
+                                        />
+                                        <select 
+                                            value={post.tipo} 
+                                            onChange={e => {
+                                                const up = [...feed];
+                                                up[idx].tipo = e.target.value;
+                                                setFeed(up);
+                                            }}
+                                            className="bg-[#161d2b] text-[10px] font-bold rounded p-1 border-none outline-none"
+                                        >
+                                            <option value="positivo">Positivo</option>
+                                            <option value="neutral">Neutral</option>
+                                            <option value="negativo">Negativo</option>
+                                        </select>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="font-bold text-sm">@{post.usuario}</span>
+                                        <span className="text-xs text-slate-500">{post.tiempo}</span>
+                                        <span className={`text-[10px] font-bold uppercase tracking-widest ${post.tipo === 'positivo' ? 'text-green-500' : post.tipo === 'negativo' ? 'text-red-500' : 'text-yellow-500'}`}>
+                                            {post.tipo}
+                                        </span>
+                                    </>
+                                )}
                             </div>
-                            <p className="text-sm text-slate-300">{post.texto}</p>
+                            {isEditing ? (
+                                <textarea 
+                                    value={post.texto} 
+                                    onChange={e => {
+                                        const up = [...feed];
+                                        up[idx].texto = e.target.value;
+                                        setFeed(up);
+                                    }}
+                                    className="w-full bg-transparent border-none p-0 text-sm text-slate-300 outline-none resize-none min-h-[40px]"
+                                />
+                            ) : (
+                                <p className="text-sm text-slate-300">{post.texto}</p>
+                            )}
                         </div>
-                        <div className={`w-2 h-2 rounded-full ${post.tipo === 'positivo' ? 'bg-green-500' : post.tipo === 'negativo' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                        {isEditing ? (
+                            <Button variant="ghost" size="sm" onClick={() => setFeed(feed.filter((_, i) => i !== idx))} className="text-red-500 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                            </Button>
+                        ) : (
+                            <div className={`w-2 h-2 rounded-full ${post.tipo === 'positivo' ? 'bg-green-500' : post.tipo === 'negativo' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                        )}
                     </div>
                 );
             })}
