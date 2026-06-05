@@ -112,7 +112,7 @@ export function GlobeComponent({
     countriesData = [],
     globeMarkers = []
 }: GlobeProps) {
-  const globeEl = useRef<any>();
+  const globeEl = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCountry, setHoveredCountry] = useState<any | null>(null);
   const [features, setFeatures] = useState<any[]>([]);
