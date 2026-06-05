@@ -118,7 +118,7 @@ export function TopicTabs({
   return (
     <Tabs defaultValue="overview" className="mt-6">
       <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
-        {tabs.map((t) => (
+        {tabs.map((t: TabData) => (
           <TabsTrigger key={t.key} value={t.key} className="text-xs">
             {t.label}
           </TabsTrigger>
@@ -157,7 +157,7 @@ export function TopicTabs({
                 />
             ) : (
                 <div className="flex flex-wrap gap-2 mt-2">
-                {narrativa.tipoConversacion.split(" + ").map((t) => (
+                {narrativa.tipoConversacion.split(" + ").map((t: string) => (
                     <span key={t} className="px-3 py-1 rounded-full text-xs font-medium bg-white/5" style={{ color: "rgb(43, 130, 238)" }}>
                     {t}
                     </span>
@@ -185,11 +185,11 @@ export function TopicTabs({
         <div className="kpi-card p-4">
           <div className="text-sm font-semibold mb-4">Arco narrativo recomendado</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {narrativa.arco.map((a, i) => (
+            {(isEditing && strategy ? strategy.narrativa.arco : narrativa.arco).map((a: any, i: number) => (
               <div 
                 key={i} 
                 className="p-3 rounded-lg relative overflow-hidden bg-[rgb(21,27,40)] border-l-[3px]"
-                style={{ borderColor: narrativeTypeColors[a.tipo] || "rgb(43, 130, 238)" }}
+                style={{ borderColor: (narrativeTypeColors as any)[a.tipo] || "rgb(43, 130, 238)" }}
               >
                 <div className="flex items-center gap-2 mb-1">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ color: narrativeTypeColors[a.tipo] || "rgb(43, 130, 238)" }}>
@@ -445,7 +445,7 @@ export function TopicTabs({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {platformContent.map((c, i) => (
+                        {platformContent.map((c: any, i: number) => (
                             <div 
                                 key={i} 
                                 className="p-3 rounded-lg bg-[rgb(21,27,40)] border-l-2 relative group"
@@ -454,7 +454,7 @@ export function TopicTabs({
                                 {isEditing && setStrategy && strategy && (
                                     <Button variant="ghost" size="sm" onClick={() => {
                                         const newContenido = {...strategy.contenido};
-                                        newContenido[plat] = newContenido[plat].filter((_:any, idx:number) => idx !== i);
+                                        newContenido[plat] = newContenido[plat].filter((_: any, idx: number) => idx !== i);
                                         setStrategy({...strategy, contenido: newContenido});
                                     }} className="absolute top-1 right-1 h-6 w-6 p-0 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <FontAwesomeIcon icon={faTrash} className="w-2.5 h-2.5" />
@@ -595,7 +595,7 @@ export function TopicTabs({
                       />
                   ) : (
                       <div className="flex flex-wrap gap-1">
-                        {d.topHashtags.map((h) => (
+                        {d.topHashtags.map((h: string) => (
                           <span 
                             key={h} 
                             className="flex items-center gap-0.5 text-[10px] px-2 py-0.5 rounded-full font-bold"
