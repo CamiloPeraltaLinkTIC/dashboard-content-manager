@@ -165,15 +165,17 @@ export function GlobeComponent({
     }
   };
 
-  // Sync point of view when selectedCountryId changes externally
+  // Sync point of view when selectedCountryId changes externally (Manual selection)
   useEffect(() => {
-    if (selectedCountryId && globeEl.current && !userInteracting.current) {
+    // Only move camera here if tour is NOT active or if it's a manual selection
+    // that needs to override the current position.
+    if (selectedCountryId && globeEl.current && !isTourActive) {
         const countryData = countriesData.find(c => c.id === selectedCountryId);
         if (countryData) {
             globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
         }
     }
-  }, [selectedCountryId, countriesData]);
+  }, [selectedCountryId, countriesData, isTourActive]);
 
   // Country-to-Country Tour Logic
   useEffect(() => {
@@ -199,22 +201,20 @@ export function GlobeComponent({
         }
         
         const countryData = tourCountries[currentIndexRef.current % tourCountries.length];
-        setActiveTourCountryId(null);
+        
+        // ACTIVATE EVERYTHING INSTANTLY
+        setActiveTourCountryId(countryData.id);
+        onSelect(countryData.id);
         
         if (globeEl.current) {
-            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 1.8 }, 3000);
+            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
             
             tourTimeoutRef.current = setTimeout(() => {
-                if (isTourActive && !hoveredCountry && !userInteracting.current) {
-                    setActiveTourCountryId(countryData.id);
-                    onSelect(countryData.id);
-                    
+                if (isTourActive) {
                     currentIndexRef.current++;
-                    tourTimeoutRef.current = setTimeout(runTour, 6000);
-                } else {
                     runTour();
                 }
-            }, 3200);
+            }, 7000);
         }
     };
 
@@ -300,6 +300,11 @@ export function GlobeComponent({
   return (
     <div 
         ref={containerRef}
+        onPointerDown={() => { userInteracting.current = true; }}
+        onPointerUp={() => { 
+            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+            interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 2000);
+        }}
         className={`${className} ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#03060d]' : ''}`} 
         style={{ position: isFullscreen ? 'fixed' : 'relative', width: "100%", height: "100%", display: 'flex', justifyContent: 'center', alignItems: 'center' }}
     >
@@ -558,17 +563,22 @@ export function GlobeComponent({
         onPolygonClick={(d: any) => {
             const countryData = getCountryData(d.properties.name, countriesData);
             if (countryData) {
+                userInteracting.current = false;
                 onSelect(countryData.id);
                 setIsTourActive(false); 
                 setActiveTourCountryId(countryData.id);
+                
+                // Update tour index to resume from here
+                const tourCountries = mode === 'witnesses'
+                    ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
+                    : countriesData.filter(c => c.volumen > 0);
+                const newIdx = tourCountries.findIndex(c => c.id === countryData.id);
+                if (newIdx !== -1) currentIndexRef.current = newIdx;
+
+                if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
             }
         }}
-        onGlobePointerDown={() => { userInteracting.current = true; }}
-        onGlobePointerUp={() => { 
-            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-            interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 2000);
-        }}
-        onZoom={() => { 
+        onZoom={(pov) => { 
             userInteracting.current = true;
             if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
             interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 3000);
