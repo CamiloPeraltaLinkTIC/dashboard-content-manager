@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS content_manager_legitimidad_strategy (
 
 -- Insertar datos iniciales para Índices
 INSERT INTO content_manager_legitimidad_indices (id, indice_confianza, indice_transparencia, indice_eficiencia, encuestas) VALUES
-('main', 74, 82, 68, '[{"mes": "Ago", "confianza": 62, "transparencia": 70}, {"mes": "Sep", "confianza": 65, "transparencia": 72}, {"mes": "Oct", "confianza": 68, "transparencia": 75}, {"mes": "Nov", "confianza": 71, "transparencia": 78}, {"mes": "Dic", "confianza": 73, "transparencia": 80}, {"mes": "Ene", "confianza": 74, "transparencia": 82}]')
+('main', 74, 82, 68, '[{"mes": "Dic", "confianza": 68, "transparencia": 72}, {"mes": "Ene", "confianza": 70, "transparencia": 74}, {"mes": "Feb", "confianza": 71, "transparencia": 75}, {"mes": "Mar", "confianza": 72, "transparencia": 78}, {"mes": "Abr", "confianza": 73, "transparencia": 80}, {"mes": "May", "confianza": 74, "transparencia": 81}, {"mes": "Jun", "confianza": 75, "transparencia": 82}]')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insertar certificaciones iniciales

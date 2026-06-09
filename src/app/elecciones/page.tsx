@@ -40,13 +40,17 @@ function EleccionesOverview({
     kpis, 
     setKpis, 
     calendario, 
-    setCalendario, 
+    setCalendario,
+    participacion,
+    setParticipacion,
     isEditing 
 }: { 
     kpis: any[], 
     setKpis: (k: any[]) => void, 
     calendario: any[], 
-    setCalendario: (c: any[]) => void, 
+    setCalendario: (c: any[]) => void,
+    participacion: any[],
+    setParticipacion: (p: any[]) => void,
     isEditing: boolean 
 }) {
 
@@ -99,41 +103,90 @@ function EleccionesOverview({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Historical Participation Chart */}
-        <div className="kpi-card p-4 rounded-xl border-white/5 shadow-none">
-          <h3 className="text-sm font-semibold mb-1">Participación Histórica</h3>
+        <div className="kpi-card p-4 rounded-xl border-white/5 shadow-none relative">
+          <div className="flex justify-between items-start mb-1">
+            <h3 className="text-sm font-semibold">Participación Histórica</h3>
+            {isEditing && (
+                <Button size="sm" variant="ghost" onClick={() => setParticipacion([...participacion, { anio: '20XX', pct: 50 }])} className="h-6 text-[10px] font-bold text-blue-400">
+                    <FontAwesomeIcon icon={faPlus} className="mr-1" /> Año
+                </Button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mb-4">% del censo electoral — Colombia presidenciales</p>
-          <div className="h-[180px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={participacionHistorica} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(222 30% 18%)" />
-                <XAxis 
-                  dataKey="año" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#888', fontSize: 11 }} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#888', fontSize: 11 }} 
-                  domain={[30, 70]}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0e1320', border: '1px solid #20283c', borderRadius: '6px', fontSize: '12px' }}
-                />
-                <Bar 
-                  dataKey="pct" 
-                  fill="hsl(213,85%,55%)" 
-                  radius={[3, 3, 0, 0]} 
-                  barSize={61}
-                >
-                    {participacionHistorica.map((entry, index) => (
-                        <Bar key={`cell-${index}`} fill={index === participacionHistorica.length - 1 ? 'hsl(42,90%,52%)' : 'hsl(213,85%,55%)'} />
-                    ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          
+          <div className={`grid ${isEditing ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1'} gap-4`}>
+            <div className={`${isEditing ? 'xl:col-span-2' : ''} h-[180px]`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={participacion} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(222 30% 18%)" />
+                  <XAxis 
+                    dataKey="anio" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#888', fontSize: 11 }} 
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#888', fontSize: 11 }} 
+                    domain={[0, 100]}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0e1320', border: '1px solid #20283c', borderRadius: '6px', fontSize: '12px' }}
+                  />
+                  <Bar 
+                    dataKey="pct" 
+                    fill="hsl(213,85%,55%)" 
+                    radius={[3, 3, 0, 0]} 
+                    barSize={40}
+                  >
+                      {participacion.map((entry, index) => (
+                          <Bar key={`cell-${index}`} fill={index === participacion.length - 1 ? 'hsl(42,90%,52%)' : 'hsl(213,85%,55%)'} />
+                      ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {isEditing && (
+                <div className="bg-black/20 rounded-xl p-3 border border-white/5 overflow-y-auto max-h-[180px] custom-scrollbar">
+                    <table className="w-full text-[10px]">
+                        <thead>
+                            <tr className="text-slate-500 uppercase font-black border-b border-white/10">
+                                <th className="pb-1 text-left">Año</th>
+                                <th className="pb-1 text-center">% Part.</th>
+                                <th className="pb-1 text-right"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {participacion.map((p, i) => (
+                                <tr key={i} className="border-b border-white/5 last:border-0 group">
+                                    <td className="py-1">
+                                        <Input value={p.anio} onChange={e => {
+                                            const newP = [...participacion];
+                                            newP[i].anio = e.target.value;
+                                            setParticipacion(newP);
+                                        }} className="h-5 text-[10px] bg-transparent border-none p-0 font-bold w-12" />
+                                    </td>
+                                    <td className="py-1">
+                                        <Input type="number" value={p.pct} onChange={e => {
+                                            const newP = [...participacion];
+                                            newP[i].pct = parseFloat(e.target.value) || 0;
+                                            setParticipacion(newP);
+                                        }} className="h-5 w-12 text-[10px] bg-white/5 border-white/10 p-0 text-center mx-auto text-blue-400 font-bold" />
+                                    </td>
+                                    <td className="py-1 text-right">
+                                        <button onClick={() => setParticipacion(participacion.filter((_, idx) => idx !== i))} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <FontAwesomeIcon icon={faTrash} className="w-2.5 h-2.5" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
           </div>
         </div>
 
@@ -221,6 +274,7 @@ export default function EleccionesPage() {
   const [strategy, setStrategy] = useState<any>(mockTopicData.elecciones);
   const [kpis, setKpis] = useState<any[]>([]);
   const [calendario, setCalendario] = useState<any[]>([]);
+  const [participacion, setParticipacion] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -229,10 +283,12 @@ export default function EleccionesPage() {
     const { data: sData } = await supabase.from('content_manager_elecciones_strategy').select('*').eq('id', 'main').single();
     const { data: kData } = await supabase.from('content_manager_elecciones_kpis').select('*').order('id');
     const { data: cData } = await supabase.from('content_manager_elecciones_calendario').select('*').order('id');
+    const { data: pData } = await supabase.from('content_manager_elecciones_participacion').select('*').order('id');
 
     if (sData) setStrategy(sData);
     if (kData) setKpis(kData);
     if (cData) setCalendario(cData);
+    if (pData) setParticipacion(pData);
     setLoading(false);
   };
 
@@ -251,6 +307,11 @@ export default function EleccionesPage() {
           await supabase.from('content_manager_elecciones_calendario').delete().neq('id', 0);
           if (calendario.length > 0) {
               await supabase.from('content_manager_elecciones_calendario').insert(calendario.map(({ id, ...rest }) => rest));
+          }
+
+          await supabase.from('content_manager_elecciones_participacion').delete().neq('id', 0);
+          if (participacion.length > 0) {
+              await supabase.from('content_manager_elecciones_participacion').insert(participacion.map(({ id, ...rest }) => rest));
           }
 
           alert("¡Cambios en Elecciones guardados con éxito!");
@@ -299,7 +360,9 @@ export default function EleccionesPage() {
                     kpis={kpis} 
                     setKpis={setKpis} 
                     calendario={calendario} 
-                    setCalendario={setCalendario} 
+                    setCalendario={setCalendario}
+                    participacion={participacion}
+                    setParticipacion={setParticipacion}
                     isEditing={isEditing} 
                 />
             }
@@ -384,6 +447,34 @@ export default function EleccionesPage() {
                               </div>
                           ))}
                       </div>
+                  </div>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Participación Histórica</h4>
+                    <Button size="sm" variant="ghost" onClick={() => setParticipacion([...participacion, { anio: '20XX', pct: 50 }])} className="h-6 text-[10px] font-bold text-blue-400">
+                        <FontAwesomeIcon icon={faPlus} className="mr-1" /> Agregar Año
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                      {participacion.map((p, i) => (
+                          <div key={i} className="bg-black/20 p-2 rounded-lg space-y-1 relative group">
+                              <Input value={p.anio} onChange={e => {
+                                  const newP = [...participacion];
+                                  newP[i].anio = e.target.value;
+                                  setParticipacion(newP);
+                              }} className="h-6 text-[10px] bg-transparent border-white/10 font-bold" />
+                              <Input type="number" value={p.pct} onChange={e => {
+                                  const newP = [...participacion];
+                                  newP[i].pct = parseFloat(e.target.value) || 0;
+                                  setParticipacion(newP);
+                              }} className="h-6 text-[10px] bg-white/5 border-white/10 text-blue-400" />
+                              <button onClick={() => setParticipacion(participacion.filter((_, idx) => idx !== i))} className="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <FontAwesomeIcon icon={faTrash} />
+                              </button>
+                          </div>
+                      ))}
                   </div>
               </div>
 

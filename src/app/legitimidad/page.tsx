@@ -11,6 +11,7 @@ import { AdminPopup } from "@/components/admin-popup";
 import {
   pageHeaders,
   legitimidadTabs,
+  legitimidadData,
   topicData as mockTopicData,
 } from "@/data/mock";
 import {
@@ -116,53 +117,120 @@ function LegitimidadOverview({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Evolution Chart */}
-        <div className="kpi-card p-4 rounded-2xl border-white/5 shadow-none">
-          <h3 className="text-sm font-semibold mb-1">Evolución de Índices</h3>
-          <p className="text-xs text-muted-foreground mb-4">Agosto 2025 – Enero 2026</p>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={d.encuestas} margin={{ bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(222 30% 18%)" />
-                <XAxis 
-                  dataKey="mes" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#888', fontSize: 11 }} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#888', fontSize: 11 }} 
-                  domain={[55, 90]}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0e1320', border: '1px solid #20283c', borderRadius: '6px', fontSize: '12px' }}
-                />
-                <Legend 
-                  verticalAlign="bottom" 
-                  align="center" 
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="confianza" 
-                  name="Confianza" 
-                  stroke="rgb(43, 130, 238)" 
-                  strokeWidth={2} 
-                  dot={{ r: 3, fill: '#fff', stroke: 'rgb(43, 130, 238)', strokeWidth: 2 }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="transparencia" 
-                  name="Transparencia" 
-                  stroke="rgb(243, 177, 22)" 
-                  strokeWidth={2} 
-                  dot={{ r: 3, fill: '#fff', stroke: 'rgb(243, 177, 22)', strokeWidth: 2 }} 
-                />
-              </LineChart>
-            </ResponsiveContainer>
+        <div className="kpi-card p-4 rounded-2xl border-white/5 shadow-none relative">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Evolución de Índices</h3>
+              <p className="text-xs text-muted-foreground">Diciembre 2025 – Junio 2026 (Mes Actual)</p>
+            </div>
+            {isEditing && (
+              <Button size="sm" variant="ghost" onClick={() => {
+                const newEnc = [...d.encuestas, { mes: '---', confianza: 50, transparencia: 50 }];
+                setIndices({...d, encuestas: newEnc});
+              }} className="h-6 text-[10px] font-black text-blue-400 uppercase">
+                <FontAwesomeIcon icon={faPlus} className="mr-1" /> Mes
+              </Button>
+            )}
+          </div>
+
+          <div className={`grid ${isEditing ? 'grid-cols-1 xl:grid-cols-5' : 'grid-cols-1'} gap-4`}>
+            <div className={`${isEditing ? 'xl:col-span-3' : ''} h-[200px]`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={d.encuestas} margin={{ bottom: 10, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(222 30% 18%)" />
+                  <XAxis 
+                    dataKey="mes" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#888', fontSize: 10 }} 
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#888', fontSize: 10 }} 
+                    domain={[0, 100]}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0e1320', border: '1px solid #20283c', borderRadius: '12px', fontSize: '12px' }}
+                  />
+                  <Legend 
+                    verticalAlign="top" 
+                    align="right" 
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: '10px', paddingBottom: '20px' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="confianza" 
+                    name="Confianza" 
+                    stroke="rgb(43, 130, 238)" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#0e1320', stroke: 'rgb(43, 130, 238)', strokeWidth: 2 }}
+                    activeDot={{ r: 6 }} 
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="transparencia" 
+                    name="Transparencia" 
+                    stroke="rgb(243, 177, 22)" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#0e1320', stroke: 'rgb(243, 177, 22)', strokeWidth: 2 }}
+                    activeDot={{ r: 6 }} 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {isEditing && (
+              <div className="xl:col-span-2 bg-black/20 rounded-xl p-3 border border-white/5 overflow-y-auto max-h-[200px] custom-scrollbar">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-slate-500 uppercase font-black border-b border-white/10">
+                      <th className="pb-1">Mes</th>
+                      <th className="pb-1 text-center">Conf</th>
+                      <th className="pb-1 text-center">Trans</th>
+                      <th className="pb-1 text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.encuestas.map((en: any, i: number) => (
+                      <tr key={i} className="border-b border-white/5 last:border-0 group">
+                        <td className="py-1">
+                          <Input value={en.mes} onChange={e => {
+                            const newE = [...d.encuestas];
+                            newE[i].mes = e.target.value;
+                            setIndices({...d, encuestas: newE});
+                          }} className="h-5 text-[10px] bg-transparent border-none p-0 font-bold" />
+                        </td>
+                        <td className="py-1">
+                          <Input type="number" value={en.confianza} onChange={e => {
+                            const newE = [...d.encuestas];
+                            newE[i].confianza = parseInt(e.target.value) || 0;
+                            setIndices({...d, encuestas: newE});
+                          }} className="h-5 w-10 text-[10px] bg-white/5 border-white/10 p-0 text-center mx-auto text-blue-400" />
+                        </td>
+                        <td className="py-1">
+                          <Input type="number" value={en.transparencia} onChange={e => {
+                            const newE = [...d.encuestas];
+                            newE[i].transparencia = parseInt(e.target.value) || 0;
+                            setIndices({...d, encuestas: newE});
+                          }} className="h-5 w-10 text-[10px] bg-white/5 border-white/10 p-0 text-center mx-auto text-yellow-500" />
+                        </td>
+                        <td className="py-1 text-right">
+                          <button onClick={() => {
+                            const newE = d.encuestas.filter((_: any, idx: number) => idx !== i);
+                            setIndices({...d, encuestas: newE});
+                          }} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -399,9 +467,29 @@ export default function LegitimidadPage() {
                     <h3 className="font-bold text-blue-400">Panel de Control</h3>
                     <p className="text-xs text-slate-400">Gestiona los índices de confianza y certificaciones.</p>
                 </div>
-                <Button className="bg-blue-600 hover:bg-blue-700 font-bold" onClick={saveLegitimidadData}>
-                    <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                            if (confirm("¿Estás seguro de reiniciar los índices al periodo Dic-Jun 2026?")) {
+                                setIndices({
+                                    ...indices,
+                                    indice_confianza: legitimidadData.indiceConfianza,
+                                    indice_transparencia: legitimidadData.indiceTransparencia,
+                                    indice_eficiencia: legitimidadData.indiceProcesos,
+                                    encuestas: legitimidadData.encuestas
+                                });
+                            }
+                        }}
+                        className="bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500 hover:text-white"
+                    >
+                        <FontAwesomeIcon icon={faRotate} className="mr-2" /> Cargar Dic-Jun
+                    </Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 font-bold" onClick={saveLegitimidadData}>
+                        <FontAwesomeIcon icon={faSave} className="mr-2" /> Guardar Todo
+                    </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -47,6 +47,22 @@ const sentimentColors = {
   negativas: "#df3a3a"
 };
 
+const formatTime = (time: string | Date) => {
+    if (!time) return "Ahora";
+    const date = typeof time === 'string' ? new Date(time) : time;
+    if (isNaN(date.getTime())) return time.toString();
+    
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 0) return "En un momento";
+    if (diffInSeconds < 60) return "Hace un momento";
+    if (diffInSeconds < 3600) return `Hace ${Math.floor(diffInSeconds / 60)} min`;
+    if (diffInSeconds < 86400) return `Hace ${Math.floor(diffInSeconds / 3600)} h`;
+    
+    return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 export default function MediosPage() {
   const { role } = useAuth();
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -124,12 +140,25 @@ export default function MediosPage() {
 
                 // FEED detection
                 if (firstRow['Medio'] || firstRow['medio'] || firstRow['Titular'] || firstRow['texto']) {
-                    const newFeedData = data.map((row: any) => ({
-                        medio: row['Medio'] || row['medio'] || 'Medio',
-                        tiempo: row['Tiempo'] || row['tiempo'] || 'Ahora',
-                        texto: row['Texto'] || row['texto'] || row['Titular'] || '',
-                        tipo: (row['Tipo'] || row['tipo'] || 'neutral').toLowerCase()
-                    }));
+                    const newFeedData = data.map((row: any) => {
+                        let tiempo = row['Tiempo'] || row['tiempo'];
+                        // Handle Excel date if it's a number
+                        if (typeof tiempo === 'number') {
+                            tiempo = new Date((tiempo - (25567 + 1)) * 86400 * 1000).toISOString();
+                        } else if (!tiempo || tiempo === 'Ahora') {
+                            tiempo = new Date().toISOString();
+                        } else {
+                            const d = new Date(tiempo);
+                            tiempo = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+                        }
+                        
+                        return {
+                            medio: row['Medio'] || row['medio'] || 'Medio',
+                            tiempo: tiempo,
+                            texto: row['Texto'] || row['texto'] || row['Titular'] || '',
+                            tipo: (row['Tipo'] || row['tipo'] || 'neutral').toLowerCase()
+                        };
+                    });
                     updatedFeed = [...newFeedData, ...updatedFeed].slice(0, 50);
                     feedsFound += newFeedData.length;
                 } 
@@ -308,6 +337,86 @@ export default function MediosPage() {
                 <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#64748b]"></span> Neutral</div>
                 <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#df3a3a]"></span> Negativas</div>
             </div>
+
+            {isEditing && (
+                <div className="mt-8 pt-8 border-t border-white/5 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Editar Datos del Gráfico
+                    </h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-white/10">
+                                    <th className="pb-2">Día</th>
+                                    <th className="pb-2 text-center">Total</th>
+                                    <th className="pb-2 text-center text-green-500">Pos</th>
+                                    <th className="pb-2 text-center text-red-500">Neg</th>
+                                    <th className="pb-2 text-right">Neu</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(() => {
+                                    const kpiNotas = profiles.find(p => p.id === 'kpi_notas');
+                                    if (!kpiNotas || !kpiNotas.tendencia_semanal) return null;
+                                    return kpiNotas.tendencia_semanal.map((day: any, dIdx: number) => (
+                                        <tr key={day.dia} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                                            <td className="py-2">
+                                                <Input value={day.dia} onChange={e => {
+                                                    const up = [...profiles];
+                                                    const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                    const newTrend = [...up[pIdx].tendencia_semanal];
+                                                    newTrend[dIdx].dia = e.target.value;
+                                                    up[pIdx].tendencia_semanal = newTrend;
+                                                    setProfiles(up);
+                                                }} className="h-6 w-12 bg-transparent border-none p-0 text-xs font-bold text-slate-200" />
+                                            </td>
+                                            <td className="py-2">
+                                                <div className="flex justify-center">
+                                                    <Input type="number" value={day.notas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].notas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-6 w-16 bg-white/5 border-white/10 text-center text-xs text-blue-400 font-bold" />
+                                                </div>
+                                            </td>
+                                            <td className="py-2">
+                                                <div className="flex justify-center">
+                                                    <Input type="number" value={day.positivas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].positivas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-6 w-16 bg-green-500/5 border-green-500/20 text-center text-xs text-green-500 font-bold" />
+                                                </div>
+                                            </td>
+                                            <td className="py-2">
+                                                <div className="flex justify-center">
+                                                    <Input type="number" value={day.negativas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].negativas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-6 w-16 bg-red-500/5 border-red-500/20 text-center text-xs text-red-500 font-bold" />
+                                                </div>
+                                            </td>
+                                            <td className="py-2 text-right text-[10px] text-slate-500 font-mono font-bold">
+                                                {day.notas - day.positivas - day.negativas}
+                                            </td>
+                                        </tr>
+                                    ));
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </Card>
 
         {/* Top Media */}
@@ -390,7 +499,7 @@ export default function MediosPage() {
                 <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● ACTUALIZADO</span>
             </div>
             {isEditing && (
-                <Button size="sm" variant="ghost" onClick={() => setFeed([{ medio: 'Medio', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])} className="text-[10px] font-black uppercase text-blue-400">
+                <Button size="sm" variant="ghost" onClick={() => setFeed([{ medio: 'Medio', tiempo: new Date().toISOString(), texto: '', tipo: 'neutral' }, ...feed])} className="text-[10px] font-black uppercase text-blue-400">
                     <FontAwesomeIcon icon={faPlus} className="mr-1" /> Nueva Noticia
                 </Button>
             )}
@@ -411,11 +520,16 @@ export default function MediosPage() {
                                         up[idx].medio = e.target.value;
                                         setFeed(up);
                                     }} className="h-6 text-xs font-bold text-blue-400 bg-white/5 border-white/10 w-32" />
-                                    <Input value={post.tiempo} onChange={e => {
-                                        const up = [...feed];
-                                        up[idx].tiempo = e.target.value;
-                                        setFeed(up);
-                                    }} className="h-6 text-xs bg-white/5 border-white/10 w-24" />
+                                    <Input 
+                                        type="datetime-local"
+                                        value={post.tiempo && !isNaN(new Date(post.tiempo).getTime()) ? new Date(new Date(post.tiempo).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} 
+                                        onChange={e => {
+                                            const up = [...feed];
+                                            up[idx].tiempo = e.target.value;
+                                            setFeed(up);
+                                        }} 
+                                        className="h-6 text-xs bg-white/5 border-white/10 w-44" 
+                                    />
                                     <select 
                                         value={post.tipo} 
                                         onChange={e => {
@@ -433,7 +547,7 @@ export default function MediosPage() {
                             ) : (
                                 <>
                                     <span className="font-bold text-sm text-blue-400">{post.medio.toUpperCase()}</span>
-                                    <span className="text-xs text-slate-500">{post.tiempo}</span>
+                                    <span className="text-xs text-slate-500">{formatTime(post.tiempo)}</span>
                                 </>
                             )}
                         </div>
@@ -539,13 +653,86 @@ export default function MediosPage() {
                         </div>
                     </div>
 
+                    {/* Weekly Tendency Section */}
+                    <div>
+                        <h3 className="text-emerald-400 font-black mb-4 uppercase text-xs tracking-widest flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Tendencia Semanal (Gráfico)
+                        </h3>
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                                <thead>
+                                    <tr className="text-slate-500 border-b border-white/10">
+                                        <th className="pb-2">Día</th>
+                                        <th className="pb-2">Total Notas</th>
+                                        <th className="pb-2">Positivas</th>
+                                        <th className="pb-2">Negativas</th>
+                                        <th className="pb-2 text-right">Neutral (Auto)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(() => {
+                                        const kpiNotas = profiles.find(p => p.id === 'kpi_notas');
+                                        if (!kpiNotas || !kpiNotas.tendencia_semanal) return null;
+                                        return kpiNotas.tendencia_semanal.map((day: any, dIdx: number) => (
+                                            <tr key={day.dia} className="border-b border-white/5 last:border-0">
+                                                <td className="py-2">
+                                                    <Input value={day.dia} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].dia = e.target.value;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-7 w-16 bg-transparent border-none p-0 font-bold" />
+                                                </td>
+                                                <td className="py-2">
+                                                    <Input type="number" value={day.notas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].notas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-7 w-20 bg-[#05080f] border-white/5 px-2" />
+                                                </td>
+                                                <td className="py-2">
+                                                    <Input type="number" value={day.positivas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].positivas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-7 w-20 bg-[#05080f] border-white/5 px-2 text-green-500" />
+                                                </td>
+                                                <td className="py-2">
+                                                    <Input type="number" value={day.negativas} onChange={e => {
+                                                        const up = [...profiles];
+                                                        const pIdx = up.findIndex(pr => pr.id === 'kpi_notas');
+                                                        const newTrend = [...up[pIdx].tendencia_semanal];
+                                                        newTrend[dIdx].negativas = parseInt(e.target.value) || 0;
+                                                        up[pIdx].tendencia_semanal = newTrend;
+                                                        setProfiles(up);
+                                                    }} className="h-7 w-20 bg-[#05080f] border-white/5 px-2 text-red-500" />
+                                                </td>
+                                                <td className="py-2 text-right text-slate-400 font-mono">
+                                                    {day.notas - day.positivas - day.negativas}
+                                                </td>
+                                            </tr>
+                                        ));
+                                    })()}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     {/* News Feed Section */}
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-yellow-500 font-black uppercase text-xs tracking-widest flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-yellow-500"></span> Feed de Noticias
                             </h3>
-                            <Button size="sm" variant="ghost" className="text-[10px] uppercase font-black text-slate-400 hover:text-white" onClick={() => setFeed([{ medio: 'Medio', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])}>
+                            <Button size="sm" variant="ghost" className="text-[10px] uppercase font-black text-slate-400 hover:text-white" onClick={() => setFeed([{ medio: 'Medio', tiempo: new Date().toISOString(), texto: '', tipo: 'neutral' }, ...feed])}>
                                 <FontAwesomeIcon icon={faPlus} className="mr-2" /> Agregar Noticia
                             </Button>
                         </div>
@@ -559,11 +746,14 @@ export default function MediosPage() {
                                                 news[idx].medio = e.target.value;
                                                 setFeed(news);
                                             }} className="bg-[#05080f] border-white/5 h-8 text-xs w-1/3" />
-                                            <Input value={post.tiempo} placeholder="Tiempo" onChange={(e) => {
-                                                const news = [...feed];
-                                                news[idx].tiempo = e.target.value;
-                                                setFeed(news);
-                                            }} className="bg-[#05080f] border-white/5 h-8 text-xs w-1/3" />
+                                            <Input 
+                                                type="datetime-local"
+                                                value={post.tiempo && !isNaN(new Date(post.tiempo).getTime()) ? new Date(new Date(post.tiempo).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} 
+                                                onChange={(e) => {
+                                                    const news = [...feed];
+                                                    news[idx].tiempo = e.target.value;
+                                                    setFeed(news);
+                                                }} className="bg-[#05080f] border-white/5 h-8 text-xs w-1/3" />
                                             <select className="bg-[#05080f] border-white/5 h-8 text-xs rounded-md px-2 w-1/3" value={post.tipo} onChange={(e) => {
                                                 const news = [...feed];
                                                 news[idx].tipo = e.target.value;
