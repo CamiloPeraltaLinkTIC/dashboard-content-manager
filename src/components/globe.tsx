@@ -593,9 +593,6 @@ export function GlobeComponent({
         
         onPolygonHover={(d: any) => {
             setHoveredCountry(d);
-            if (d) {
-                setActiveTourCountryId(null);
-            }
         }}
         onPolygonClick={(d: any) => {
             const countryData = getCountryData(d.properties.name, countriesData);

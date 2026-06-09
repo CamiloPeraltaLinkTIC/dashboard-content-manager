@@ -713,7 +713,7 @@ export default function MapaPage() {
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <FontAwesomeIcon icon={faGlobe} className="text-blue-500 w-5 h-5"/>
-            Todos los Territorios
+            Países en donde se habla del CNE
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {sortedCountries.map(c => (
