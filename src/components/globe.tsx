@@ -172,15 +172,28 @@ export function GlobeComponent({
 
   // Sync point of view when selectedCountryId changes externally (Manual selection)
   useEffect(() => {
-    // Only move camera here if tour is NOT active or if it's a manual selection
-    // that needs to override the current position.
-    if (selectedCountryId && globeEl.current && !isTourActive) {
+    if (selectedCountryId && globeEl.current) {
         const countryData = countriesData.find(c => c.id === selectedCountryId);
         if (countryData) {
+            // STOP TOUR if it's a manual selection from outside (like the ranking)
+            if (activeTourCountryId !== selectedCountryId) {
+                setIsTourActive(false);
+                setActiveTourCountryId(selectedCountryId);
+                
+                // Update tour index to resume from here if re-activated
+                const tourCountries = mode === 'witnesses'
+                    ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
+                    : countriesData.filter(c => c.volumen > 0);
+                const newIdx = tourCountries.findIndex(c => c.id === selectedCountryId);
+                if (newIdx !== -1) currentIndexRef.current = newIdx;
+            }
+
             globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
         }
+    } else if (!selectedCountryId) {
+        setActiveTourCountryId(null);
     }
-  }, [selectedCountryId, countriesData, isTourActive]);
+  }, [selectedCountryId, countriesData, mode, globeMarkers]);
 
   // Country-to-Country Tour Logic
   useEffect(() => {
@@ -599,17 +612,6 @@ export function GlobeComponent({
             if (countryData) {
                 userInteracting.current = false;
                 onSelect(countryData.id);
-                setIsTourActive(false); 
-                setActiveTourCountryId(countryData.id);
-                
-                // Update tour index to resume from here
-                const tourCountries = mode === 'witnesses'
-                    ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
-                    : countriesData.filter(c => c.volumen > 0);
-                const newIdx = tourCountries.findIndex(c => c.id === countryData.id);
-                if (newIdx !== -1) currentIndexRef.current = newIdx;
-
-                if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
             }
         }}
         onZoom={(pov) => { 
