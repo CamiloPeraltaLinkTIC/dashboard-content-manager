@@ -642,7 +642,7 @@ export default function MapaPage() {
   if (loadingDb) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center">Cargando base de datos global...</div>;
 
   return (
-    <div className="h-screen flex flex-col p-6 gap-6 overflow-y-auto bg-[#03060d] text-white">
+    <div className="flex flex-col p-6 gap-6 bg-[#03060d] text-white">
       <div className="space-y-4">
         <div className="flex gap-2">
             <span className="bg-[#1e293b] text-blue-400 text-xs px-2 py-1 rounded-full border border-blue-500/20">🌐 MAPA GLOBAL</span>

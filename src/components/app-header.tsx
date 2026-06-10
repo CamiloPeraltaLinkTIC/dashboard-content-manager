@@ -6,6 +6,7 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useAuth } from "./auth-provider";
 import { LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { signOut } from "@/app/actions/auth";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/elecciones": {
@@ -97,7 +98,7 @@ export function AppHeader() {
       </div>
 
       <button 
-        onClick={logout}
+        onClick={async () => await signOut()}
         className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-white/5 text-slate-500 hover:text-red-400 transition-colors"
         title="Cerrar Sesión"
       >

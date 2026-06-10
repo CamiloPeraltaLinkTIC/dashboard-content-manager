@@ -211,7 +211,7 @@ export default function MediosPage() {
   if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Conversación en Medios...</div>;
 
   return (
-    <div className="min-h-screen bg-[#03060d] text-white p-6 overflow-y-auto">
+    <div className="bg-[#03060d] text-white p-6">
       {/* Header Section */}
       <div className="mb-8 flex justify-between items-center">
         <div>

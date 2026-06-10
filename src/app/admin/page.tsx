@@ -87,7 +87,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-6 h-screen overflow-y-auto bg-[#03060d] text-white">
+    <div className="p-6 bg-[#03060d] text-white">
       <PageHeader 
         title="Panel de Administración" 
         description="Administra los datos de los tableros que luego se leerán dinámicamente desde Supabase."

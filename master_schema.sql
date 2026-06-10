@@ -119,3 +119,51 @@ INSERT INTO content_manager_medios_profiles (id, label, value, delta, sentimient
 ('kpi_voceros', 'Voceros Activos', '12', '+0%', 80, 0, '[]'),
 ('kpi_alcance', 'Alcance Radial', '4.2M', '+8%', 72, 0, '[]')
 ON CONFLICT (id) DO NOTHING;
+
+---------------------------------------------------------
+-- 4. Seguridad (RLS) y Perfiles
+---------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
+    user_role TEXT DEFAULT 'user' CHECK (user_role IN ('user', 'admin'))
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Funciones auxiliares para RLS
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND user_role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Aplicar RLS a todas las tablas existentes
+DO $$
+DECLARE
+    table_name TEXT;
+BEGIN
+    FOR table_name IN 
+        SELECT tablename 
+        FROM pg_tables 
+        WHERE schemaname = 'public' 
+        AND tablename IN (
+            'content_manager_quiroz_profile',
+            'content_manager_quiroz_apariciones',
+            'content_manager_quiroz_strategy',
+            'content_manager_social_profiles',
+            'content_manager_social_feed',
+            'content_manager_medios_profiles',
+            'content_manager_medios_feed'
+        )
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+        
+        EXECUTE format('CREATE POLICY "Lectura abierta para autenticados" ON %I FOR SELECT TO authenticated USING (true)', table_name);
+        EXECUTE format('CREATE POLICY "Escritura solo para admins" ON %I FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin())', table_name);
+    END LOOP;
+END $$;

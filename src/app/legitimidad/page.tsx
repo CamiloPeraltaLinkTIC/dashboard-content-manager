@@ -409,7 +409,7 @@ export default function LegitimidadPage() {
   if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Legitimidad...</div>;
 
   return (
-    <div className="p-6 h-screen overflow-y-auto bg-[#03060d] text-white">
+    <div className="p-6 bg-[#03060d] text-white">
       <div className="flex justify-between items-start">
         <PageHeader badges={h.badges} title={h.title} description={h.description} />
         <div className="flex gap-2">

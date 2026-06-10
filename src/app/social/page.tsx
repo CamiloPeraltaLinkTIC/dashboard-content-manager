@@ -176,7 +176,7 @@ export default function SocialPage() {
   if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Inteligencia Social...</div>;
 
   return (
-    <div className="min-h-screen bg-[#03060d] text-white p-6">
+    <div className="bg-[#03060d] text-white p-6">
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
         <div>
