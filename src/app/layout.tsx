@@ -30,7 +30,6 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${dmSans.variable} ${dmSerif.variable} h-full antialiased`}
-      style={{ overflow: 'hidden' }}
     >
       <head>
         <link
@@ -38,7 +37,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="h-full overflow-hidden bg-background text-foreground">
+      <body className="h-full bg-background text-foreground">
         <LayoutWrapper>{children}</LayoutWrapper>
       </body>
     </html>
