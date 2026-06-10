@@ -43,7 +43,7 @@ export function AppHeader() {
   const pathname = usePathname();
   const meta = pageMeta[pathname] || pageMeta["/elecciones"];
   const { state, isMobile } = useSidebar();
-  const { role, logout } = useAuth();
+  const { role } = useAuth();
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
 

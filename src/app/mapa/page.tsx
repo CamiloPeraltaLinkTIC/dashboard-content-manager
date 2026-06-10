@@ -86,11 +86,11 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
                 <div className="space-y-2">
                     {(() => {
                         const platformEntries = Object.entries(country.plataformas) as [string, number][];
-                        const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                        const trueTotal = platformEntries.reduce((acc: any, [_, v]: any) => acc + (v || 0), 0);
                         
                         return platformEntries
-                            .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                            .map(([plat, vol]) => (
+                            .sort((a: any, b: any) => (b[1] || 0) - (a[1] || 0))
+                            .map(([plat, vol]: any) => (
                                 <div key={plat} className="flex items-center gap-3">
                                     <div style={{ color: platformColors[plat] }}>
                                         <BrandIcon name={plat} className="w-5 h-5"/>
@@ -228,7 +228,7 @@ export default function MapaPage() {
     const { data: countries } = await supabase.from('content_manager_mapa_countries').select('*');
     const { data: markers } = await supabase.from('content_manager_globe_markers').select('*');
     if (countries) {
-        const formattedC = countries.map(c => ({
+        const formattedC = countries.map((c: any) => ({
             ...c,
             // Auto-fill missing coordinates from local dict
             lat: c.lat || countryCoordinates[c.id]?.lat || 0,
@@ -275,7 +275,7 @@ export default function MapaPage() {
         const lat = match.latlng?.[0] ?? 0;
         const lng = match.latlng?.[1] ?? 0;
         const emoji = match.flag || getEmojiFlag(iso);
-        setCountriesData(prev => prev.map(c => c.id !== id ? c : { ...c, id: iso, emoji, lat, lng }));
+        setCountriesData(prev => prev.map((c: any) => c.id !== id ? c : { ...c, id: iso, emoji, lat, lng }));
         if (editingCountryId === id) setEditingCountryId(iso);
     } catch {
         // silently fail
@@ -287,7 +287,7 @@ export default function MapaPage() {
   const repairAllCoordinates = async () => {
     setLookingUp(true);
     try {
-        const missing = countriesData.filter(c => !c.lat && !c.lng);
+        const missing = countriesData.filter((c: any) => !c.lat && !c.lng);
         let repaired = [...countriesData];
         for (const country of missing) {
             try {
@@ -299,7 +299,7 @@ export default function MapaPage() {
                 const lat = data.latlng?.[0] ?? countryCoordinates[iso]?.lat ?? 0;
                 const lng = data.latlng?.[1] ?? countryCoordinates[iso]?.lng ?? 0;
                 const emoji = data.flag || getEmojiFlag(iso);
-                repaired = repaired.map(c => c.id === country.id ? { ...c, lat, lng, emoji } : c);
+                repaired = repaired.map((c: any) => c.id === country.id ? { ...c, lat, lng, emoji } : c);
                 // Save to DB immediately
                 await supabase.from('content_manager_mapa_countries').update({ lat, lng, emoji }).eq('id', country.id);
             } catch {
@@ -318,7 +318,7 @@ export default function MapaPage() {
         setEditingCountryId(value);
     }
     
-    setCountriesData(prev => prev.map(c => {
+    setCountriesData(prev => prev.map((c: any) => {
         if (c.id !== id) return c;
         
         const newC = { ...c, [field]: value };
@@ -354,11 +354,11 @@ export default function MapaPage() {
   };
 
   const handlePlatformChange = (id: string, platform: string, value: string) => {
-    setCountriesData(prev => prev.map(c => {
+    setCountriesData(prev => prev.map((c: any) => {
         if (c.id !== id) return c;
         const newPlats = { ...(c.plataformas || {}), [platform]: parseInt(value) || 0 };
         // auto update total volume
-        const total = Object.values(newPlats).reduce((acc: any, val: any) => acc + val, 0);
+        const total = Object.values(newPlats).reduce((acc: any, val: any) => acc + (val || 0), 0);
         return { ...c, plataformas: newPlats, volumen: total };
     }));
   };
@@ -393,7 +393,7 @@ export default function MapaPage() {
                 const id = countryNameToIso[countryName] || (row['ID'] || row['id'] || '').toString().toUpperCase().trim();
                 if (!id || id.length !== 2) return;
 
-                const idx = updated.findIndex(c => c.id === id);
+                const idx = updated.findIndex((c: any) => c.id === id);
                 const existing = idx !== -1 ? updated[idx] : null;
 
                 // Platform data
@@ -466,12 +466,12 @@ export default function MapaPage() {
   };
   
   const handleArrayChange = (id: string, field: string, value: string) => {
-    const arr = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const arr = value.split(',').map((s: any) => s.trim()).filter((s: any) => s.length > 0);
     handleCountryChange(id, field, arr);
   };
 
   const handleSentimentPctChange = (id: string, type: 'positivo' | 'neutral' | 'negativo', value: string) => {
-    setCountriesData(prev => prev.map(c => {
+    setCountriesData(prev => prev.map((c: any) => {
         if (c.id !== id) return c;
         const newPct = { ...(c.sentimientoPct || { positivo: 0, neutral: 0, negativo: 0 }), [type]: parseInt(value) || 0 };
         return { ...c, sentimientoPct: newPct };
@@ -548,9 +548,9 @@ export default function MapaPage() {
   const sortedCountries = useMemo(() => {
     let data = [...countriesData];
     if (selectedPlatform) {
-        data = data.filter(c => (c.plataformas as any)[selectedPlatform] > 0);
+        data = data.filter((c: any) => (c.plataformas as any)[selectedPlatform] > 0);
     }
-    return data.sort((a, b) => {
+    return data.sort((a: any, b: any) => {
         const volA = selectedPlatform ? (a.plataformas as any)[selectedPlatform] || 0 : a.volumen;
         const volB = selectedPlatform ? (b.plataformas as any)[selectedPlatform] || 0 : b.volumen;
         return volB - volA;
@@ -559,7 +559,7 @@ export default function MapaPage() {
 
   const maxVolume = useMemo(() => {
     if (countriesData.length === 0) return 1;
-    return Math.max(...countriesData.map(c => 
+    return Math.max(...countriesData.map((c: any) => 
       selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen
     ), 1);
   }, [countriesData, selectedPlatform]);
@@ -574,15 +574,15 @@ export default function MapaPage() {
         ];
     }
 
-    const totalMentions = countriesData.reduce((acc, c) => acc + (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen), 0);
-    const activeCountries = countriesData.filter(c => (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen) > 0).length;
+    const totalMentions = countriesData.reduce((acc: any, c: any) => acc + (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen), 0);
+    const activeCountries = countriesData.filter((c: any) => (selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen) > 0).length;
     
     // Weighted Sentiment and Pct Cambio
     let weightedPos = 0;
     let weightedPct = 0;
     let totalVolForSentiment = 0;
     
-    countriesData.forEach(c => {
+    countriesData.forEach((c: any) => {
         const vol = selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen;
         if (vol > 0) {
             if (c.sentimientoPct) {
@@ -597,7 +597,7 @@ export default function MapaPage() {
     const avgPct = totalMentions > 0 ? (weightedPct / totalMentions).toFixed(1) : "0";
 
     // Most active
-    const sorted = [...countriesData].sort((a, b) => {
+    const sorted = [...countriesData].sort((a: any, b: any) => {
         const vA = selectedPlatform ? (a.plataformas as any)[selectedPlatform] || 0 : a.volumen;
         const vB = selectedPlatform ? (b.plataformas as any)[selectedPlatform] || 0 : b.volumen;
         return vB - vA;
@@ -716,7 +716,7 @@ export default function MapaPage() {
             Países en donde se habla del CNE
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortedCountries.map(c => (
+            {sortedCountries.map((c: any) => (
                 <button 
                     key={c.id} 
                     onClick={() => setSelected(c.id)}
@@ -780,18 +780,18 @@ export default function MapaPage() {
                     onChange={(e) => setEditingCountryId(e.target.value)}
                 >
                     <option value="">-- Seleccionar --</option>
-                    {countriesData.map(c => (
+                    {countriesData.map((c: any) => (
                         <option key={c.id} value={c.id}>{c.pais} ({c.id})</option>
                     ))}
                 </select>
             </div>
 
-            {editingCountryId && countriesData.find(c => c.id === editingCountryId) && (
+            {editingCountryId && countriesData.find((c: any) => c.id === editingCountryId) && (
                 <div className="space-y-4 bg-[#101726] p-4 rounded-xl border border-white/5">
                     {(() => {
                         // Sync raw fields when editing country changes
 
-                        const c = countriesData.find(c => c.id === editingCountryId)!;
+                        const c = countriesData.find((c: any) => c.id === editingCountryId)!;
                         return (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
