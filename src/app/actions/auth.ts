@@ -3,12 +3,16 @@
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 
-export async function signUp(formData: FormData) {
-  const username = formData.get("email") as string; // Ahora recibimos username
+export type AuthState = {
+  error: string | null;
+  success?: boolean;
+};
+
+export async function signUp(formData: FormData): Promise<AuthState> {
+  const username = formData.get("email") as string;
   const password = formData.get("password") as string;
   const supabase = await getAuthenticatedSupabaseClient();
 
-  // Convertimos username a Ghost Email usando @yopmail.com
   const ghostEmail = username.includes("@") ? username : `${username}@yopmail.com`;
 
   const { error } = await supabase.auth.signUp({
@@ -25,15 +29,14 @@ export async function signUp(formData: FormData) {
     return { error: error.message };
   }
   
-  return { success: true };
+  return { error: null, success: true };
 }
 
-export async function signIn(prevState: any, formData: FormData) {
-  const username = formData.get("email") as string; // El campo sigue llamándose email en el form
+export async function signIn(prevState: AuthState, formData: FormData): Promise<AuthState> {
+  const username = formData.get("email") as string;
   const password = formData.get("password") as string;
   const supabase = await getAuthenticatedSupabaseClient();
 
-  // Convertimos username a Ghost Email internamente usando @yopmail.com
   const ghostEmail = username.includes("@") ? username : `${username}@yopmail.com`;
 
   const { error } = await supabase.auth.signInWithPassword({

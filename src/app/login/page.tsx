@@ -1,18 +1,18 @@
 "use client";
 
 import { useActionState } from "react";
-import { signIn } from "@/app/actions/auth";
+import { signIn, type AuthState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faLock, faEnvelope } from "@fortawesome/free-solid-svg-icons";
 
-const initialState = {
+const initialState: AuthState = {
   error: null,
 };
 
 export default function LoginPage() {
-  // Usamos useActionState para capturar el retorno de la Server Action
+  // useActionState requiere que el tipo de initialState coincida con el retorno de la acción
   const [state, formAction, isPending] = useActionState(signIn, initialState);
 
   return (
@@ -56,6 +56,7 @@ export default function LoginPage() {
                 type="password" 
                 placeholder="••••••••"
                 required
+                autoComplete="current-password"
                 className="pl-10 h-12 bg-[#161d2b] border-white/10 text-white rounded-xl focus:border-blue-500 focus:ring-blue-500 transition-all font-mono"
               />
             </div>
