@@ -60,8 +60,8 @@ const actoresNavItems = [
 type ModeKey = "cne" | "actores";
 
 const modes: Record<ModeKey, { label: string; sub: string; icon: React.ComponentType<{ className?: string }>; home: string; navItems: typeof cneNavItems; section: string }> = {
-  cne: { label: "CNE", sub: "Content Manager", icon: Crosshair, home: "/mapa", navItems: cneNavItems, section: "Narrativa" },
-  actores: { label: "Actores Electorales", sub: "Instagram · Colombia", icon: Users, home: "/actores-electorales/mapa-colombia", navItems: actoresNavItems, section: "Actores Electorales" },
+  cne: { label: "CNE Colombia", sub: "Panel central", icon: Crosshair, home: "/mapa", navItems: cneNavItems, section: "Narrativa" },
+  actores: { label: "Actores Electorales", sub: "Panel central", icon: Users, home: "/actores-electorales/mapa-colombia", navItems: actoresNavItems, section: "Actores Electorales" },
 };
 
 export function AppSidebar() {
@@ -153,13 +153,12 @@ export function AppSidebar() {
               <Link
                 key={item.path}
                 href={item.path}
-                className={`sidebar-item flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive && item.icon === "Instagram"
+                className={`sidebar-item flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive && item.icon === "Instagram"
                     ? "active bg-[rgba(225,48,108,0.12)] text-[#E1306C] border-l-2 border-[#E1306C] pl-[calc(0.75rem-2px)]"
                     : isActive
-                    ? "active bg-[hsl(213_85%_48%/0.15)] text-[hsl(213_85%_48%)] border-l-2 border-[hsl(213_85%_48%)] pl-[calc(0.75rem-2px)]"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
+                      ? "active bg-[hsl(213_85%_48%/0.15)] text-[hsl(213_85%_48%)] border-l-2 border-[hsl(213_85%_48%)] pl-[calc(0.75rem-2px)]"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
               >
                 {item.icon === "Instagram" ? (
                   <FontAwesomeIcon
@@ -192,7 +191,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-border/40 px-4 py-3 group-data-[collapsible=icon]:hidden">
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <Copyright className="h-3 w-3" />
-          <span>CNE Colombia © 2026</span>
+          <span>By LinkTIC © 2026</span>
         </div>
       </SidebarFooter>
     </Sidebar>

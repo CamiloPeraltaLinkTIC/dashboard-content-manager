@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 import { AdminPopup } from "@/components/admin-popup";
 import { ColombiaMapEditor } from "@/components/colombia-map-editor";
 import { COLOMBIA_DEPARTAMENTOS } from "@/data/colombia-departamentos";
@@ -44,7 +45,7 @@ const DepartmentDetail = ({ dep }: { dep: any }) => {
         <div className="flex items-center gap-3">
           <span className="font-mono text-2xl font-bold text-slate-400">{dep.id}</span>
           <div>
-            <h3 className="text-xl font-bold leading-tight">{dep.pais}</h3>
+            <h3 className="text-xl font-bold leading-tight">{dep.label ?? dep.pais}</h3>
             <p className="text-xs text-slate-400 flex items-center gap-1">
               <FontAwesomeIcon icon={faLocationDot} className="w-3 h-3" /> {dep.capital} · {dep.updateTime}
             </p>
@@ -103,6 +104,7 @@ const DepartmentDetail = ({ dep }: { dep: any }) => {
 };
 
 export default function MapaColombiaPage() {
+  const { firstName } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,7 @@ export default function MapaColombiaPage() {
       return {
         id: dep.id,
         nombre: dep.nombre,
+        label: dep.displayNombre ?? dep.nombre,
         pais: dep.nombre, // El globo usa "pais" como nombre de la región a pintar
         capital: r?.capital ?? dep.capital,
         lat: dep.lat,
@@ -180,7 +183,7 @@ export default function MapaColombiaPage() {
       { label: "Menciones Instagram", value: fmt(total), delta: null, trend: "up" as const },
       { label: "Departamentos activos", value: `${activos}/${data.length}`, delta: null, trend: "neutral" as const },
       { label: "Sentimiento positivo", value: `${avgPos}%`, delta: null, trend: avgPos > 50 ? ("up" as const) : ("down" as const) },
-      { label: "Departamento líder", value: top ? top.pais : "---", delta: fmt(top?.volumen || 0), trend: "up" as const },
+      { label: "Departamento líder", value: top ? (top.label ?? top.pais) : "---", delta: fmt(top?.volumen || 0), trend: "up" as const },
     ];
   }, [data, sortedDeps]);
 
@@ -189,16 +192,9 @@ export default function MapaColombiaPage() {
   return (
     <div className="flex flex-col p-6 gap-6 bg-[#03060d] text-white">
       <div className="space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          <span className="bg-[#2a1020] text-pink-400 text-xs px-2 py-1 rounded-full border border-pink-500/20 flex items-center gap-1">
-            <FontAwesomeIcon icon={faInstagram} className="w-3 h-3" /> SOLO INSTAGRAM
-          </span>
-          <span className="bg-[#1e293b] text-blue-400 text-xs px-2 py-1 rounded-full border border-blue-500/20">🗺️ MAPA DE COLOMBIA</span>
-          <span className="bg-[#0f291e] text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/20">● ACTORES ELECTORALES</span>
-        </div>
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Mapa de Colombia — Actores Electorales</h1>
-          <p className="text-slate-400 mt-2">Conversación en Instagram sobre actores electorales, desagregada por departamento. Selecciona un departamento para ver el detalle.</p>
+          <h1 className="text-4xl font-bold tracking-tight">Conversación Nacional — Actores Electorales</h1>
+          <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias nacionales de la Unión Temporal Actores Electorales. Haz clic en un marcador para ver el detalle.</p>
         </div>
 
         <KpiCards items={kpis} />
@@ -270,7 +266,7 @@ export default function MapaColombiaPage() {
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="flex items-center gap-2 truncate">
                         <span className="font-mono font-bold w-5 text-center" style={{ color: rankColor }}>{i + 1}</span>
-                        <span className="truncate">{d.pais}</span>
+                        <span className="truncate">{d.label ?? d.pais}</span>
                       </span>
                       <span className="font-mono text-slate-300 shrink-0">{Number(d.volumen).toLocaleString()}</span>
                     </div>
@@ -313,7 +309,7 @@ export default function MapaColombiaPage() {
                   />
                 </div>
 
-                <h3 className="text-sm font-semibold text-white leading-tight truncate" title={d.pais}>{d.pais}</h3>
+                <h3 className="text-sm font-semibold text-white leading-tight truncate" title={d.label ?? d.pais}>{d.label ?? d.pais}</h3>
                 <p className="text-[10px] text-slate-500 truncate mb-2">{d.capital}</p>
 
                 <div className="flex items-baseline gap-1.5">

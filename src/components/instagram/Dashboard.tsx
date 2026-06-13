@@ -85,9 +85,6 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
           <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/20 font-bold uppercase">
             ACTORES ELECTORALES
           </span>
-          <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-1 rounded-full border border-white/10 uppercase">
-            vía Windsor.ai
-          </span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
           @{account}

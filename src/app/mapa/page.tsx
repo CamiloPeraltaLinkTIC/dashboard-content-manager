@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
@@ -207,6 +208,7 @@ const countryNameToIso: Record<string, string> = {
 };
 
 export default function MapaPage() {
+  const { firstName } = useAuth();
   const [selected, setSelected] = useState<string | null>("CO");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [countriesData, setCountriesData] = useState<any[]>([]);
@@ -651,7 +653,7 @@ export default function MapaPage() {
         </div>
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Conversación Global — CNE Colombia</h1>
-          <p className="text-slate-400 mt-2">Narrativa y tendencias del proceso electoral colombiano en los distintos paises. Selecciona un marcador para ver el detalle.</p>
+          <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias internacionales del Consejo Nacional Electoral de Colombia. Haz clic en un marcador para ver el detalle.</p>
         </div>
         
         <KpiCards items={dynamicKpis} />

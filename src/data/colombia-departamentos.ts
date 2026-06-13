@@ -7,6 +7,7 @@
 export interface DepartamentoBase {
   id: string;
   nombre: string;
+  displayNombre?: string;
   capital: string;
   lat: number;
   lng: number;
@@ -15,7 +16,7 @@ export interface DepartamentoBase {
 export const COLOMBIA_DEPARTAMENTOS: DepartamentoBase[] = [
   { id: "05", nombre: "Antioquia", capital: "Medellín", lat: 7.001, lng: -75.836 },
   { id: "08", nombre: "Atlántico", capital: "Barranquilla", lat: 10.675, lng: -74.973 },
-  { id: "11", nombre: "Santafé de Bogotá D.C", capital: "Bogotá", lat: 4.286, lng: -74.211 },
+  { id: "11", nombre: "Santafé de Bogotá D.C", displayNombre: "Bogotá D.C", capital: "Bogotá", lat: 4.286, lng: -74.211 },
   { id: "13", nombre: "Bolívar", capital: "Cartagena", lat: 9.125, lng: -74.764 },
   { id: "15", nombre: "Boyacá", capital: "Tunja", lat: 5.849, lng: -73.295 },
   { id: "17", nombre: "Caldas", capital: "Manizales", lat: 5.351, lng: -75.38 },

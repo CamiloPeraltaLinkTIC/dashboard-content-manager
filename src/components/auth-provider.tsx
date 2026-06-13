@@ -8,16 +8,23 @@ type Role = "admin" | "reader" | null;
 interface AuthContextType {
   user: any;
   role: Role;
+  firstName: string;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, role: null });
+const AuthContext = createContext<AuthContextType>({ user: null, role: null, firstName: "" });
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<Role>(null);
+  const [firstName, setFirstName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+
+  const resolveFirstName = (u: any) => {
+    const full = u?.user_metadata?.full_name || u?.user_metadata?.name || u?.email || "";
+    return full.split(/[\s@]/)[0] || "";
+  };
 
   useEffect(() => {
     const getInitialSession = async () => {
@@ -29,8 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select("user_role")
           .eq("id", session.user.id)
           .single();
-        
+
         setRole(profile?.user_role || "reader");
+        setFirstName(resolveFirstName(session.user));
       }
       setLoading(false);
     };
@@ -46,9 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq("id", session.user.id)
           .single();
         setRole(profile?.user_role || "reader");
+        setFirstName(resolveFirstName(session.user));
       } else {
         setUser(null);
         setRole(null);
+        setFirstName("");
       }
       setLoading(false);
     });
@@ -59,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role }}>
+    <AuthContext.Provider value={{ user, role, firstName }}>
       {!loading && children}
     </AuthContext.Provider>
   );
