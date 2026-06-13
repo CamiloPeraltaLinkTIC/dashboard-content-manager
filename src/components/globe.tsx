@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Globe from "react-globe.gl";
 import * as topojson from "topojson-client";
 import { Topology } from "topojson-specification";
@@ -70,6 +70,11 @@ const nameMapping: Record<string, string> = {
   "Panama": "Panamá",
 };
 
+// Accesores constantes del globo: definidos a nivel de módulo para que su
+// identidad nunca cambie y react-globe.gl no reprocese polígonos sin necesidad.
+const polygonSideColorConst = () => "rgba(0, 0, 0, 0)";
+const polygonStrokeColorConst = () => "#444444";
+
 const normalizeName = (name: string) => {
   return name.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
@@ -106,12 +111,21 @@ interface GlobeProps {
     mode?: 'global' | 'witnesses';
     sentimentColors?: Record<string, string>;
     platformColors?: Record<string, string>;
+    // Geografía configurable: permite reutilizar el globo para Colombia (departamentos)
+    geoUrl?: string;            // TopoJSON o GeoJSON con los polígonos a pintar
+    geoObjectKey?: string;      // Clave dentro de topology.objects (solo TopoJSON)
+    regionNameProp?: string;    // Propiedad del feature que tiene el nombre de la región
+    initialPov?: { lat: number; lng: number; altitude: number }; // Cámara inicial
+    tourAltitude?: number;      // Altitud de cámara durante el tour
+    showFlag?: boolean;         // Mostrar bandera de país en tooltips (off para departamentos)
+    unitLabel?: string;         // Etiqueta de la métrica (ej: "menciones")
+    initialTourActive?: boolean; // Si el tour automático arranca activo (default true)
 }
 
-export function GlobeComponent({ 
-    className, 
-    onSelect, 
-    selectedCountryId, 
+export function GlobeComponent({
+    className,
+    onSelect,
+    selectedCountryId,
     selectedPlatform,
     hideIntensity = false,
     countriesData = [],
@@ -121,13 +135,22 @@ export function GlobeComponent({
     mode = 'global',
     // Added props
     sentimentColors = { positivo: "rgb(46, 184, 138)", negativo: "rgb(223, 58, 58)", neutral: "rgb(243, 177, 22)", mixto: "hsl(42 90% 52%)" },
-    platformColors = { X: "rgb(255, 255, 255)", Facebook: "rgb(24, 119, 242)", Instagram: "rgb(225, 48, 108)", TikTok: "rgb(105, 201, 208)" }
+    platformColors = { X: "rgb(255, 255, 255)", Facebook: "rgb(24, 119, 242)", Instagram: "rgb(225, 48, 108)", TikTok: "rgb(105, 201, 208)" },
+    // Geografía (defaults = mapa mundial CNE)
+    geoUrl = "/world.topojson",
+    geoObjectKey = "countries",
+    regionNameProp = "name",
+    initialPov,
+    tourAltitude = 2,
+    showFlag = true,
+    unitLabel = "menciones",
+    initialTourActive = true,
 }: GlobeProps) {
   const globeEl = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCountry, setHoveredCountry] = useState<any | null>(null);
   const [features, setFeatures] = useState<any[]>([]);
-  const [isTourActive, setIsTourActive] = useState(true);
+  const [isTourActive, setIsTourActive] = useState(initialTourActive);
   const [activeTourCountryId, setActiveTourCountryId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const userInteracting = useRef(false);
@@ -141,13 +164,24 @@ export function GlobeComponent({
   [selectedCountryId]);
 
   useEffect(() => {
-    fetch("/world.topojson")
+    fetch(geoUrl)
       .then((res) => res.json())
-      .then((topology: Topology) => {
-        const geojson = topojson.feature(topology, topology.objects.countries);
-        setFeatures((geojson as any).features);
+      .then((data: any) => {
+        // Soporta tanto TopoJSON (se convierte a features) como GeoJSON directo
+        if (data?.type === "Topology") {
+          const geojson = topojson.feature(data as Topology, (data as any).objects[geoObjectKey]);
+          setFeatures((geojson as any).features);
+        } else if (data?.type === "FeatureCollection") {
+          setFeatures(data.features);
+        }
       });
-  }, []);
+  }, [geoUrl, geoObjectKey]);
+
+  // Lee el nombre de la región desde las propiedades del feature (país o departamento)
+  const getRegionName = useCallback(
+    (properties: any) => properties?.[regionNameProp] ?? properties?.name ?? "",
+    [regionNameProp]
+  );
 
   // Fullscreen change listener
   useEffect(() => {
@@ -156,6 +190,42 @@ export function GlobeComponent({
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // Pausar el render loop WebGL cuando no se está viendo (pestaña en segundo
+  // plano o globo fuera del viewport). Evita gastar GPU/CPU/batería renderizando
+  // a 60fps algo invisible. react-globe.gl expone pause/resumeAnimation.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let isVisible = !document.hidden;
+    let isOnScreen = true;
+
+    const apply = () => {
+      const g = globeEl.current;
+      if (!g) return;
+      if (isVisible && isOnScreen) {
+        g.resumeAnimation?.();
+      } else {
+        g.pauseAnimation?.();
+      }
+    };
+
+    const handleVisibility = () => { isVisible = !document.hidden; apply(); };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => { isOnScreen = entry.isIntersecting; apply(); },
+      { threshold: 0.05 }
+    );
+    observer.observe(container);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      observer.disconnect();
+      globeEl.current?.resumeAnimation?.();
+    };
   }, []);
 
   const toggleFullscreen = () => {
@@ -188,7 +258,7 @@ export function GlobeComponent({
                 if (newIdx !== -1) currentIndexRef.current = newIdx;
             }
 
-            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
+            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude }, 2000);
         }
     } else if (!selectedCountryId) {
         setActiveTourCountryId(null);
@@ -212,8 +282,8 @@ export function GlobeComponent({
     const runTour = () => {
         if (!isTourActive) return;
 
-        // If user is interacting or hovering, wait and try again
-        if (hoveredCountry || userInteracting.current) {
+        // If user is interacting, hovering, or the tab is hidden, wait and retry
+        if (hoveredCountry || userInteracting.current || document.hidden) {
             tourTimeoutRef.current = setTimeout(runTour, 2000);
             return;
         }
@@ -225,8 +295,8 @@ export function GlobeComponent({
         onSelect(countryData.id);
         
         if (globeEl.current) {
-            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: 2 }, 2000);
-            
+            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude }, 2000);
+
             tourTimeoutRef.current = setTimeout(() => {
                 if (isTourActive) {
                     currentIndexRef.current++;
@@ -244,7 +314,7 @@ export function GlobeComponent({
   }, [isTourActive, onSelect, features, hoveredCountry, countriesData, globeMarkers, mode]);
 
   // Helper to generate tooltip HTML content
-  const getTooltipHtml = (countryId: string, isTour: boolean = false) => {
+  const getTooltipHtml = useCallback((countryId: string, isTour: boolean = false) => {
     const countryData = countriesData.find(c => c.id === countryId);
     if (!countryData && mode === 'global') return '';
 
@@ -281,20 +351,24 @@ export function GlobeComponent({
                 <div class="platform">${iconSvg} ${dominantPlat} dominante</div>
                 <div class="theme">${countryData.tema}</div>
                 <div class="stats">
-                    <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
+                    <span class="volume">${Number(countryData.volumen).toLocaleString()} ${unitLabel}</span>
                     <span class="sentiment">Positivo</span>
                 </div>
             `;
         }
     }
 
+    const flagBox = showFlag
+        ? `<div class="flag-box">
+                    <span class="iso-code">${finalId}</span>
+                    <img src="${flagUrl}" class="flag-img" alt="${finalName} flag" />
+                </div>`
+        : `<div class="flag-box"><span class="iso-code">${finalId}</span></div>`;
+
     return `
         <div class="globe-tooltip persistent">
             <div class="header">
-                <div class="flag-box">
-                    <span class="iso-code">${finalId}</span>
-                    <img src="${flagUrl}" class="flag-img" alt="${finalName} flag" />
-                </div>
+                ${flagBox}
                 <div>
                     <p class="country-name">${finalName}</p>
                 </div>
@@ -303,7 +377,7 @@ export function GlobeComponent({
             ${!isTour ? '<div class="footer">Clic para ver detalle completo</div>' : ''}
         </div>
     `;
-  };
+  }, [countriesData, globeMarkers, mode, showFlag, unitLabel]);
 
   const htmlElements = useMemo(() => {
     const elements = [{ lat: 4.5, lng: -74.3, type: 'hq' }];
@@ -314,6 +388,140 @@ export function GlobeComponent({
     }
     return elements;
   }, [activeTourCountryId, hoveredCountry, countriesData]);
+
+  // --- Accesores memoizados del globo ---
+  // Mantienen identidad estable entre renders para que react-globe.gl no
+  // reprocese todos los polígonos cada vez que el tour cambia de país.
+  const htmlElement = useCallback((d: any) => {
+    const el = document.createElement('div');
+    if (d.type === 'hq') {
+        el.innerHTML = '<div class="pulse-container"><div class="ring"></div><div class="dot"></div></div>';
+    } else {
+        el.innerHTML = getTooltipHtml(d.id, true); // true = hide footer during tour
+    }
+    return el;
+  }, [getTooltipHtml]);
+
+  const polygonLabel = useCallback((d: any) => {
+    const properties = d.properties;
+    const regionName = getRegionName(properties);
+    const countryData = getCountryData(regionName, countriesData);
+    const mission = getMissionData(regionName, globeMarkers);
+
+    if (!countryData && !mission) {
+        return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${regionName}</div>`;
+    }
+
+    const id = countryData?.id || mission?.id?.substring(0, 2).toUpperCase() || "??";
+    const flagUrl = `https://flagcdn.com/w40/${id.toLowerCase()}.png`;
+    const name = countryData?.pais || mission?.pais || regionName;
+
+    let content = '';
+
+    if (mode === 'witnesses') {
+        if (mission) {
+            content = `
+                <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
+                <div class="stats" style="margin-top: 5px; padding-top: 5px;">
+                    <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
+                    <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
+                </div>
+            `;
+        } else {
+            return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
+        }
+    } else {
+        if (countryData) {
+            const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
+            const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
+
+            content = `
+                <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                    ${iconSvg} ${dominantPlat} dominante
+                </div>
+                <div class="theme">${countryData.tema}</div>
+                <div class="stats">
+                    <span class="volume">${Number(countryData.volumen).toLocaleString()} ${unitLabel}</span>
+                    <span class="sentiment">Positivo</span>
+                </div>
+            `;
+        } else {
+            return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
+        }
+    }
+
+    const labelFlagBox = showFlag
+        ? `<div class="flag-box">
+                    <span class="iso-code">${id}</span>
+                    <img src="${flagUrl}" class="flag-img" alt="${name} flag" />
+                </div>`
+        : `<div class="flag-box"><span class="iso-code">${id}</span></div>`;
+
+    return `
+        <div class="globe-tooltip">
+            <div class="header">
+                ${labelFlagBox}
+                <div>
+                    <p class="country-name">${name}</p>
+                </div>
+            </div>
+            ${content}
+            <div class="footer">Clic para ver detalle completo</div>
+        </div>
+    `;
+  }, [countriesData, globeMarkers, mode, getRegionName, showFlag, unitLabel]);
+
+  const polygonCapColor = useCallback((d: any) => {
+    const countryData = getCountryData(getRegionName(d.properties), countriesData);
+    if (countryData?.id === selectedCountryId) return "#c77dff";
+    if (hideIntensity) return "rgba(18, 112, 226, 0.15)";
+    if (countryData) {
+        const volume = selectedPlatform ? (countryData.plataformas as any)[selectedPlatform] || 0 : countryData.volumen;
+        return getVolumeColor(volume);
+    }
+    return intensityColors.sinDatos;
+  }, [countriesData, selectedCountryId, hideIntensity, selectedPlatform, getRegionName]);
+
+  const onPolygonHover = useCallback((d: any) => {
+    setHoveredCountry(d);
+  }, []);
+
+  const onPolygonClick = useCallback((d: any) => {
+    const countryData = getCountryData(getRegionName(d.properties), countriesData);
+    if (countryData) {
+        userInteracting.current = false;
+        onSelect(countryData.id);
+    }
+  }, [countriesData, onSelect, getRegionName]);
+
+  const onZoom = useCallback(() => {
+    userInteracting.current = true;
+    if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 3000);
+  }, []);
+
+  const handleGlobeReady = useCallback(() => {
+    if (initialPov && globeEl.current) {
+      globeEl.current.pointOfView(initialPov, 0);
+    }
+  }, [initialPov]);
+
+  // Red de seguridad: asegura el encuadre inicial (zoom sobre Colombia) aunque
+  // onGlobeReady no llegue a tiempo. Se aplica una sola vez y se detiene.
+  useEffect(() => {
+    if (!initialPov) return;
+    let tries = 0;
+    const id = setInterval(() => {
+      tries++;
+      if (globeEl.current?.pointOfView) {
+        globeEl.current.pointOfView(initialPov, 0);
+        clearInterval(id);
+      } else if (tries > 20) {
+        clearInterval(id);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [initialPov]);
 
   return (
     <div 
@@ -509,6 +717,7 @@ export function GlobeComponent({
 
       <Globe
         ref={globeEl}
+        onGlobeReady={handleGlobeReady}
         width={isFullscreen ? undefined : undefined}
         height={isFullscreen ? undefined : undefined}
         globeImageUrl="/earth_day.jpg"
@@ -516,109 +725,18 @@ export function GlobeComponent({
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
         
         htmlElementsData={htmlElements}
-        htmlElement={(d: any) => {
-            const el = document.createElement('div');
-            if (d.type === 'hq') {
-                el.innerHTML = '<div class="pulse-container"><div class="ring"></div><div class="dot"></div></div>';
-            } else {
-                el.innerHTML = getTooltipHtml(d.id, true); // true = hide footer during tour
-            }
-            return el;
-        }}
-        
+        htmlElement={htmlElement}
+
         polygonsData={features}
-        polygonLabel={(d: any) => {
-            const properties = d.properties;
-            const countryData = getCountryData(properties.name, countriesData);
-            const mission = getMissionData(properties.name, globeMarkers);
-
-            if (!countryData && !mission) {
-                return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${properties.name}</div>`;
-            }
-
-            const id = countryData?.id || mission?.id?.substring(0, 2).toUpperCase() || "??";
-            const flagUrl = `https://flagcdn.com/w40/${id.toLowerCase()}.png`;
-            const name = countryData?.pais || mission?.pais || properties.name;
-
-            let content = '';
-
-            if (mode === 'witnesses') {
-                if (mission) {
-                    content = `
-                        <div class="theme" style="border-color: #f3b116; color: #f3b116;">${mission.tipo}</div>
-                        <div class="stats" style="margin-top: 5px; padding-top: 5px;">
-                            <span class="volume" style="color: #ffffff; font-size: 13px;">${mission.ciudad}</span>
-                            <span class="sentiment" style="color: #3b82f6;">${mission.count} obs.</span>
-                        </div>
-                    `;
-                } else {
-                    return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
-                }
-            } else {
-                if (countryData) {
-                    const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
-                    const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-                    
-                    content = `
-                        <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
-                            ${iconSvg} ${dominantPlat} dominante
-                        </div>
-                        <div class="theme">${countryData.tema}</div>
-                        <div class="stats">
-                            <span class="volume">${Number(countryData.volumen).toLocaleString()} menciones</span>
-                            <span class="sentiment">Positivo</span>
-                        </div>
-                    `;
-                } else {
-                    return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
-                }
-            }
-
-            return `
-                <div class="globe-tooltip">
-                    <div class="header">
-                        <div class="flag-box">
-                            <span class="iso-code">${id}</span>
-                            <img src="${flagUrl}" class="flag-img" alt="${name} flag" />
-                        </div>
-                        <div>
-                            <p class="country-name">${name}</p>
-                        </div>
-                    </div>
-                    ${content}
-                    <div class="footer">Clic para ver detalle completo</div>
-                </div>
-            `;
-        }}
+        polygonLabel={polygonLabel}
         polygonAltitude={0.005}
-        polygonCapColor={(d: any) => {
-            const countryData = getCountryData(d.properties.name, countriesData);
-            if (countryData?.id === selectedCountryId) return "#c77dff";
-            if (hideIntensity) return "rgba(18, 112, 226, 0.15)";
-            if (countryData) {
-                const volume = selectedPlatform ? (countryData.plataformas as any)[selectedPlatform] || 0 : countryData.volumen;
-                return getVolumeColor(volume);
-            }
-            return intensityColors.sinDatos;
-        }}
-        polygonSideColor={() => "rgba(0, 0, 0, 0)"}
-        polygonStrokeColor={() => "#444444"}
-        
-        onPolygonHover={(d: any) => {
-            setHoveredCountry(d);
-        }}
-        onPolygonClick={(d: any) => {
-            const countryData = getCountryData(d.properties.name, countriesData);
-            if (countryData) {
-                userInteracting.current = false;
-                onSelect(countryData.id);
-            }
-        }}
-        onZoom={(pov) => { 
-            userInteracting.current = true;
-            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-            interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 3000);
-        }}
+        polygonCapColor={polygonCapColor}
+        polygonSideColor={polygonSideColorConst}
+        polygonStrokeColor={polygonStrokeColorConst}
+
+        onPolygonHover={onPolygonHover}
+        onPolygonClick={onPolygonClick}
+        onZoom={onZoom}
       />
     </div>
   );
