@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/sidebar";
 import { useSidebar } from "@/components/ui/sidebar";
 import { ChevronLeft } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faInstagram } from "@fortawesome/free-brands-svg-icons";
 
 const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   Vote,
@@ -52,7 +54,7 @@ const cneNavItems = [
 
 const actoresNavItems = [
   { path: "/actores-electorales/mapa-colombia", label: "Mapa de Colombia", icon: "MapPinned", badge: "IG", badgeBg: "#2a1020", badgeText: "#E1306C" },
-  { path: "/actores-electorales/perfiles", label: "Perfiles de Actores", icon: "Users" },
+  { path: "/actores-electorales/perfiles", label: "Instagram", icon: "Instagram" },
 ];
 
 type ModeKey = "cne" | "actores";
@@ -152,14 +154,21 @@ export function AppSidebar() {
                 key={item.path}
                 href={item.path}
                 className={`sidebar-item flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive
+                  isActive && item.icon === "Instagram"
+                    ? "active bg-[rgba(225,48,108,0.12)] text-[#E1306C] border-l-2 border-[#E1306C] pl-[calc(0.75rem-2px)]"
+                    : isActive
                     ? "active bg-[hsl(213_85%_48%/0.15)] text-[hsl(213_85%_48%)] border-l-2 border-[hsl(213_85%_48%)] pl-[calc(0.75rem-2px)]"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
-                {Icon && (
+                {item.icon === "Instagram" ? (
+                  <FontAwesomeIcon
+                    icon={faInstagram}
+                    className={`h-4 w-4 shrink-0 ${isActive ? "text-[#E1306C]" : ""}`}
+                  />
+                ) : Icon ? (
                   <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-[hsl(213_85%_48%)]" : ""}`} />
-                )}
+                ) : null}
                 <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">
                   {item.label}
                 </span>

@@ -12,11 +12,31 @@ const TTL_MS = 15 * 60 * 1000;
 
 async function getFreshUrls(): Promise<Map<string, string>> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.byId;
+
   const key = process.env.WINDSOR_API_KEY;
-  if (!key) throw new Error("Falta WINDSOR_API_KEY");
+  if (!key) throw new Error("WINDSOR_API_KEY no está configurada en las variables de entorno de Vercel");
+
   const url = `https://connectors.windsor.ai/instagram?api_key=${key}&date_preset=last_90d&fields=media_id,media_type,media_url,media_thumbnail_url`;
-  const res = await fetch(url, { cache: "no-store" });
-  const json = (await res.json()) as { data?: MediaRow[] };
+
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store" });
+  } catch (e) {
+    throw new Error(`Error de red al contactar Windsor.ai: ${(e as Error).message}`);
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "(sin cuerpo)");
+    throw new Error(`Windsor.ai respondió ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  let json: { data?: MediaRow[] };
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Windsor.ai devolvió una respuesta que no es JSON válido");
+  }
+
   const byId = new Map<string, string>();
   for (const r of json.data ?? []) {
     const best = r.media_thumbnail_url || r.media_url;
@@ -33,14 +53,20 @@ function weservUrl(instagramUrl: string): string {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
   let urls: Map<string, string>;
   try {
     urls = await getFreshUrls();
   } catch (e) {
-    return Response.json({ error: (e as Error).message }, { status: 500 });
+    const message = (e as Error).message;
+    console.error(`[api/media] Error al obtener URLs de Windsor.ai: ${message}`);
+    return Response.json({ error: message }, { status: 500 });
   }
+
   const target = urls.get(id);
-  if (!target) return Response.json({ error: "media no encontrado" }, { status: 404 });
+  if (!target) {
+    return Response.json({ error: `media_id ${id} no encontrado en Windsor.ai` }, { status: 404 });
+  }
 
   return Response.redirect(weservUrl(target), 302);
 }
