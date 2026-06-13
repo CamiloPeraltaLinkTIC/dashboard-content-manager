@@ -4,7 +4,7 @@ import type { Post } from "@/lib/instagram-types";
 
 // Cache de 5 minutos — protege el límite de peticiones del plan free de Windsor.ai
 let cache: { at: number; posts: Post[] } | null = null;
-const TTL_MS = 5 * 60 * 1000;
+const TTL_MS = 2 * 60 * 60 * 1000;
 
 const FIELDS = [
   "media_id",
