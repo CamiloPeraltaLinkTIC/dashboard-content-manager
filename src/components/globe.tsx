@@ -36,7 +36,7 @@ const getVolumeColor = (volumen: number) => {
     if (volumen > 150000) return intensityColors.muyAlta;
     if (volumen > 100000) return intensityColors.alta;
     if (volumen > 50000) return intensityColors.media;
-    if (volumen > 10000) return intensityColors.baja;
+    if (volumen > 0) return intensityColors.baja;
     return intensityColors.sinDatos;
 };
 
