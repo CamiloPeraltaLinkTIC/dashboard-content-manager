@@ -193,7 +193,7 @@ export default function MapaColombiaPage() {
     <div className="flex flex-col p-6 gap-6 bg-[#03060d] text-white">
       <div className="space-y-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Conversación Nacional — Actores Electorales</h1>
+          <h1 className="text-4xl font-bold tracking-tight">Conversación Nacional - UT Actores Electorales</h1>
           <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias nacionales de la Unión Temporal Actores Electorales. Haz clic en un marcador para ver el detalle.</p>
         </div>
 
@@ -221,7 +221,7 @@ export default function MapaColombiaPage() {
               globeMarkers={[]}
               sentimentColors={sentimentColors}
               platformColors={platformColors}
-              title="Conversación Instagram · Departamentos de Colombia"
+              title="Conversación Nacional - UT Actores Electorales"
               // Configuración geográfica: Colombia por departamentos
               geoUrl="/colombia-departamentos.geojson"
               regionNameProp="NOMBRE_DPT"
