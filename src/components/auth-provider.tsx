@@ -21,9 +21,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firstName, setFirstName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  const resolveFirstName = (u: any) => {
-    const full = u?.user_metadata?.full_name || u?.user_metadata?.name || u?.email || "";
-    return full.split(/[\s@]/)[0] || "";
+  // Prioriza el nombre guardado en profiles.full_name; si no, usa metadata o el usuario.
+  const resolveFirstName = (u: any, profile?: any) => {
+    const source =
+      profile?.full_name ||
+      u?.user_metadata?.full_name ||
+      u?.user_metadata?.name ||
+      u?.user_metadata?.username ||
+      u?.email ||
+      "";
+    return source.split(/[\s@]/)[0] || "";
   };
 
   useEffect(() => {
@@ -33,12 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("user_role")
+          .select("user_role, full_name")
           .eq("id", session.user.id)
           .single();
 
         setRole(profile?.user_role || "reader");
-        setFirstName(resolveFirstName(session.user));
+        setFirstName(resolveFirstName(session.user, profile));
       }
       setLoading(false);
     };
@@ -50,11 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("user_role")
+          .select("user_role, full_name")
           .eq("id", session.user.id)
           .single();
         setRole(profile?.user_role || "reader");
-        setFirstName(resolveFirstName(session.user));
+        setFirstName(resolveFirstName(session.user, profile));
       } else {
         setUser(null);
         setRole(null);
