@@ -20,12 +20,14 @@ type SortKey = "date" | "reach" | "engagement" | "engagementRate" | "likes" | "c
 type TypeFilter = "ALL" | "REELS" | "CAROUSEL_ALBUM";
 type View = "gallery" | "table";
 
+const IG_PINK = "#E1306C";
+
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-2xl border border-white/5 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-5">
-      <div className="text-sm text-neutral-400">{label}</div>
+    <div className="rounded-2xl border border-white/5 bg-[#0b101d] p-5">
+      <div className="text-sm text-slate-400">{label}</div>
       <div className="mt-1 text-3xl font-semibold tracking-tight text-white">{value}</div>
-      {sub && <div className="mt-1 text-xs text-neutral-500">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}
     </div>
   );
 }
@@ -69,17 +71,28 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="p-6 text-white">
       {/* Header */}
       <header className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-fuchsia-400">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-fuchsia-500" />
-          Instagram · vía Windsor.ai
+        <div className="flex gap-2 flex-wrap mb-3">
+          <span
+            className="text-[10px] font-bold px-2 py-1 rounded-full border flex items-center gap-1"
+            style={{ background: "#2a1020", color: IG_PINK, borderColor: "rgba(225,48,108,0.2)" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: IG_PINK }} />
+            INSTAGRAM
+          </span>
+          <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/20 font-bold uppercase">
+            ACTORES ELECTORALES
+          </span>
+          <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-1 rounded-full border border-white/10 uppercase">
+            vía Windsor.ai
+          </span>
         </div>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
           @{account}
         </h1>
-        <p className="mt-1 text-neutral-400">{dateRange} · {posts.length} publicaciones</p>
+        <p className="mt-1 text-slate-400">{dateRange} · {posts.length} publicaciones</p>
       </header>
 
       {/* KPIs */}
@@ -93,15 +106,15 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
       </section>
 
       {/* Chart */}
-      <section className="mb-8 rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+      <section className="mb-8 rounded-2xl border border-white/5 bg-[#0b101d] p-5">
         <h2 className="mb-4 text-lg font-semibold text-white">Alcance por publicación en el tiempo</h2>
         <ReachChart posts={filtered} onSelect={setSelected} />
-        <p className="mt-3 text-xs text-neutral-500">Haz clic en una barra para ver el detalle de esa publicación.</p>
+        <p className="mt-3 text-xs text-slate-500">Haz clic en una barra para ver el detalle de esa publicación.</p>
       </section>
 
       {/* Type breakdown + hashtags */}
       <section className="mb-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+        <div className="rounded-2xl border border-white/5 bg-[#0b101d] p-5">
           <h2 className="mb-4 text-lg font-semibold text-white">Por tipo de contenido</h2>
           <div className="space-y-3">
             {byType.map((t) => {
@@ -110,16 +123,19 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
                 <div key={t.type}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="font-medium text-white">
-                      {typeLabel(t.type)} <span className="text-neutral-500">· {t.count} posts</span>
+                      {typeLabel(t.type)} <span className="text-slate-500">· {t.count} posts</span>
                     </span>
-                    <span className="text-neutral-400">
+                    <span className="text-slate-400">
                       {formatNumber(t.avgReach)} alcance prom · ER {t.avgEngagementRate}%
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-white/5">
                     <div
-                      className={t.type === "REELS" ? "h-full bg-fuchsia-500" : "h-full bg-sky-400"}
-                      style={{ width: `${(t.avgReach / maxReach) * 100}%` }}
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(t.avgReach / maxReach) * 100}%`,
+                        background: t.type === "REELS" ? IG_PINK : "rgb(56,189,248)",
+                      }}
                     />
                   </div>
                 </div>
@@ -128,7 +144,7 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+        <div className="rounded-2xl border border-white/5 bg-[#0b101d] p-5">
           <h2 className="mb-4 text-lg font-semibold text-white">Hashtags más usados</h2>
           <div className="flex flex-wrap gap-2">
             {tags.map((h) => (
@@ -140,7 +156,7 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
                 {h.tag} <span className="text-sky-500/60">×{h.count}</span>
               </span>
             ))}
-            {tags.length === 0 && <span className="text-sm text-neutral-500">Sin hashtags detectados.</span>}
+            {tags.length === 0 && <span className="text-sm text-slate-500">Sin hashtags detectados.</span>}
           </div>
         </div>
       </section>
@@ -153,8 +169,9 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
               key={t}
               onClick={() => setTypeFilter(t)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                typeFilter === t ? "bg-white text-neutral-900" : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                typeFilter !== t ? "bg-white/5 text-slate-300 hover:bg-white/10" : ""
               }`}
+              style={typeFilter === t ? { background: IG_PINK, color: "#fff" } : undefined}
             >
               {t === "ALL" ? "Todas" : typeLabel(t)}
             </button>
@@ -165,7 +182,7 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
                 key={v}
                 onClick={() => setView(v)}
                 className={`rounded-md px-3 py-1 text-sm font-medium transition ${
-                  view === v ? "bg-white text-neutral-900" : "text-neutral-300 hover:bg-white/10"
+                  view === v ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/10"
                 }`}
               >
                 {v === "gallery" ? "🖼️ Galería" : "☰ Tabla"}
@@ -174,14 +191,15 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-neutral-500">Ordenar por:</span>
+          <span className="text-xs text-slate-500">Ordenar por:</span>
           {sortButtons.map((s) => (
             <button
               key={s.key}
               onClick={() => setSortKey(s.key)}
               className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                sortKey === s.key ? "bg-fuchsia-600 text-white" : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                sortKey !== s.key ? "bg-white/5 text-slate-300 hover:bg-white/10" : ""
               }`}
+              style={sortKey === s.key ? { background: IG_PINK, color: "#fff" } : undefined}
             >
               {s.label}
             </button>
@@ -196,24 +214,24 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
             <button
               key={p.id}
               onClick={() => setSelected(p)}
-              className="group overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] text-left transition hover:border-white/20"
+              className="group overflow-hidden rounded-2xl border border-white/5 bg-[#0b101d] text-left transition hover:border-white/20"
             >
               <PostImage post={p} className="aspect-square w-full" rounded="rounded-none" />
               <div className="p-3">
-                <div className="flex items-center justify-between text-xs text-neutral-500">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>{formatDate(p.date)}</span>
                   <span>ER {p.engagementRate}%</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="font-semibold text-white">{formatNumber(p.reach)}</span>
-                  <span className="text-neutral-400">alcance</span>
+                  <span className="text-slate-400">alcance</span>
                 </div>
-                <div className="mt-1 flex gap-3 text-xs text-neutral-500">
+                <div className="mt-1 flex gap-3 text-xs text-slate-500">
                   <span>❤ {formatNumber(p.likes)}</span>
                   <span>💬 {formatNumber(p.comments)}</span>
                   <span>🔖 {formatNumber(p.saved)}</span>
                 </div>
-                <p className="mt-2 line-clamp-2 text-xs text-neutral-400">
+                <p className="mt-2 line-clamp-2 text-xs text-slate-400">
                   {clip(p.caption, 90) || "(sin texto)"}
                 </p>
               </div>
@@ -227,7 +245,7 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
         <section className="overflow-hidden rounded-2xl border border-white/5">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-white/5 text-xs uppercase tracking-wide text-neutral-400">
+              <thead className="bg-[#0b101d] text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Tipo</th>
@@ -245,26 +263,29 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
                     onClick={() => setSelected(p)}
                     className="cursor-pointer border-t border-white/5 hover:bg-white/5"
                   >
-                    <td className="whitespace-nowrap px-4 py-3 text-neutral-300">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-300">
                       {formatDate(p.date)}
-                      <span className="ml-1 text-neutral-600">{weekday(p.date)}</span>
+                      <span className="ml-1 text-slate-600">{weekday(p.date)}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          p.type === "REELS" ? "bg-fuchsia-500/15 text-fuchsia-300" : "bg-sky-500/15 text-sky-300"
-                        }`}
+                        className="rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={
+                          p.type === "REELS"
+                            ? { background: "rgba(225,48,108,0.15)", color: "#f9a8d4" }
+                            : { background: "rgba(56,189,248,0.12)", color: "#7dd3fc" }
+                        }
                       >
                         {typeLabel(p.type)}
                       </span>
                     </td>
-                    <td className="max-w-[280px] truncate px-4 py-3 text-neutral-300">
+                    <td className="max-w-[280px] truncate px-4 py-3 text-slate-300">
                       {clip(p.caption, 70) || "(sin texto)"}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-white">{formatNumber(p.reach)}</td>
-                    <td className="px-4 py-3 text-right text-neutral-300">{formatNumber(p.likes)}</td>
-                    <td className="px-4 py-3 text-right text-neutral-300">{formatNumber(p.comments)}</td>
-                    <td className="px-4 py-3 text-right text-neutral-300">{p.engagementRate}%</td>
+                    <td className="px-4 py-3 text-right text-slate-300">{formatNumber(p.likes)}</td>
+                    <td className="px-4 py-3 text-right text-slate-300">{formatNumber(p.comments)}</td>
+                    <td className="px-4 py-3 text-right text-slate-300">{p.engagementRate}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -273,7 +294,7 @@ export function Dashboard({ posts, account }: { posts: Post[]; account: string }
         </section>
       )}
 
-      <p className="mt-6 text-center text-xs text-neutral-600">
+      <p className="mt-6 text-center text-xs text-slate-600">
         Datos agregados de Instagram vía Windsor.ai. Meta no expone la identidad de quienes dan like o comentan.
       </p>
 
