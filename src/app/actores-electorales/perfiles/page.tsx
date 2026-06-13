@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { Post } from "@/lib/instagram-types";
 import { Dashboard } from "@/components/instagram/Dashboard";
-import { Analyst } from "@/components/instagram/Analyst";
 
 export default function PerfilesActoresPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -46,7 +45,6 @@ export default function PerfilesActoresPage() {
   return (
     <div className="bg-[#03060d] min-h-screen">
       <Dashboard posts={posts} account="actoreselectorales" />
-      <Analyst />
     </div>
   );
 }
