@@ -43,7 +43,7 @@ export function SentimentDonut({
   let offsetAcc = 0;
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex flex-wrap items-center justify-center gap-4">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
           <circle
@@ -90,8 +90,8 @@ export function SentimentDonut({
       <div className="space-y-2">
         {segments.map((s) => (
           <div key={s.key} className="flex items-center gap-2 text-xs">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
-            <span className="text-slate-300 w-16">{s.key}</span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
+            <span className="text-slate-300 w-14">{s.key}</span>
             <span className="font-mono font-semibold tabular-nums" style={{ color: s.color }}>
               {Math.round((s.value / total) * 100)}%
             </span>

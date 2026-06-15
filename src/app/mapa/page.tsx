@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
 import { CountUp } from "@/components/count-up";
 import { SentimentDonut } from "@/components/sentiment-donut";
+import { Flag } from "@/components/flag";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -38,7 +39,7 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
         <div key={country.id} className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                    <span className="font-mono text-2xl font-bold text-slate-400">{country.id}</span>
+                    <Flag code={country.id} className="h-8 w-auto rounded shadow border border-white/10" />
                     <div>
                         <h3 className="text-xl font-bold">{country.pais}</h3>
                         <p className="text-xs text-slate-400">{country.updateTime}</p>
@@ -661,7 +662,7 @@ export default function MapaPage() {
                   const up = (c.pctCambio || 0) >= 0;
                   return (
                     <span key={i} className="inline-flex items-center gap-2 px-5 text-sm border-r border-white/5">
-                      <span className="font-mono text-[11px] text-slate-500">{c.id}</span>
+                      <Flag code={c.id} className="h-3 w-auto rounded-[2px]" showCodeFallback={false} />
                       <span className="text-slate-200">{c.pais}</span>
                       <span className="font-semibold text-yellow-500 tabular-nums">{vol.toLocaleString()}</span>
                       <span className={`text-xs font-semibold ${up ? "text-green-400" : "text-red-400"}`}>{up ? "▲" : "▼"} {Math.abs(c.pctCambio || 0)}%</span>
@@ -718,7 +719,7 @@ export default function MapaPage() {
                 {sortedCountries.slice(0, 8).map((c, i) => (
                   <button key={c.id} onClick={() => setSelected(c.id)} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded transition-colors">
                     <span className="font-bold text-slate-500 w-6">{i + 1}</span>
-                    <span className="font-mono text-xs text-slate-300 w-6">{c.id}</span>
+                    <span className="w-6 flex justify-center shrink-0"><Flag code={c.id} className="h-3.5 w-auto rounded-[2px]" /></span>
                     <span className="flex-1 text-sm text-left">{c.pais}</span>
                     <span className="text-sm font-semibold text-yellow-500">{(selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen).toLocaleString()}</span>
                     <span className={`text-xs ${c.pctCambio > 0 ? "text-green-500" : "text-red-500"}`}>{c.pctCambio > 0 ? "↗" : "↘"} {Math.abs(c.pctCambio)}%</span>
@@ -742,8 +743,8 @@ export default function MapaPage() {
                     className="p-4 bg-[#0b101d] border border-white/5 rounded-2xl text-left hover:border-primary/50 transition-all"
                 >
                     <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-sm">
-                            <span className="font-mono text-slate-500 mr-2">{c.id}</span>
+                        <h4 className="font-bold text-sm flex items-center gap-2">
+                            <Flag code={c.id} className="h-3.5 w-auto rounded-[2px]" />
                             {c.pais}
                         </h4>
                         <span className={`text-xs font-semibold ${c.pctCambio > 0 ? "text-green-500" : "text-red-500"}`}>

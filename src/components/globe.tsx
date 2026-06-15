@@ -6,6 +6,7 @@ import * as THREE from "three";
 import * as topojson from "topojson-client";
 import { Topology } from "topojson-specification";
 import { Button } from "@/components/ui/button";
+import { SentimentDonut } from "@/components/sentiment-donut";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 // Importar los iconos de FontAwesome
@@ -410,7 +411,6 @@ export function GlobeComponent({
 
     const flagBox = showFlag
         ? `<div class="flag-box">
-                    <span class="iso-code">${finalId}</span>
                     <img src="${flagUrl}" class="flag-img" alt="${finalName} flag" />
                 </div>`
         : `<div class="flag-box"><span class="iso-code">${finalId}</span></div>`;
@@ -578,7 +578,6 @@ export function GlobeComponent({
 
     const labelFlagBox = showFlag
         ? `<div class="flag-box">
-                    <span class="iso-code">${id}</span>
                     <img src="${flagUrl}" class="flag-img" alt="${name} flag" />
                 </div>`
         : `<div class="flag-box"><span class="iso-code">${id}</span></div>`;
@@ -909,7 +908,7 @@ export function GlobeComponent({
         .globe-tooltip .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
         .globe-tooltip .flag-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .globe-tooltip .iso-code { font-family: monospace; font-size: 14px; font-weight: 700; color: #94a3b8; }
-        .globe-tooltip .flag-img { width: 24px; height: 16px; object-fit: cover; border-radius: 2px; border: 1px solid rgba(255,255,255,0.1); }
+        .globe-tooltip .flag-img { width: 32px; height: 22px; object-fit: cover; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15); }
         .globe-tooltip .country-name { font-size: 18px; font-weight: 700; margin: 0; line-height: 1.2; }
         .globe-tooltip .platform { font-size: 12px; color: #94a3b8; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
         .globe-tooltip .theme { font-size: 13px; color: #3b82f6; margin: 12px 0; font-weight: 600; line-height: 1.4; border-left: 2px solid #3b82f6; padding-left: 10px; }
@@ -971,7 +970,17 @@ export function GlobeComponent({
           <div className="absolute left-6 top-24 bottom-6 w-80 bg-[#0b101d]/95 backdrop-blur-xl border border-white/10 rounded-2xl z-[100] shadow-2xl p-6 overflow-y-auto animate-in fade-in slide-in-from-left-6 duration-500">
               <div className="flex justify-between items-start mb-6">
                   <div>
-                      <span className="text-2xl font-black text-slate-500/50 block mb-1">{selectedData.id}</span>
+                      <div className="flex items-center gap-2 mb-1">
+                          {showFlag && selectedData.id ? (
+                              <img
+                                  src={`https://flagcdn.com/w80/${selectedData.id.toLowerCase()}.png`}
+                                  alt={`Bandera ${selectedData.pais}`}
+                                  className="h-8 w-auto rounded border border-white/10 shadow object-cover"
+                              />
+                          ) : (
+                              <span className="text-2xl font-black text-slate-500/50">{selectedData.id}</span>
+                          )}
+                      </div>
                       <h2 className="text-2xl font-bold text-white leading-tight">{selectedData.pais}</h2>
                       <p className="text-xs text-blue-400 mt-1">{selectedData.updateTime}</p>
                   </div>
@@ -999,13 +1008,15 @@ export function GlobeComponent({
                       </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
                     <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-                    <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
-                        <div className="transition-all duration-700 ease-out" style={{ width: `${selectedData.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
-                    </div>
+                    <SentimentDonut
+                        size={104}
+                        positivo={selectedData.sentimientoPct?.positivo || 0}
+                        neutral={selectedData.sentimientoPct?.neutral || 0}
+                        negativo={selectedData.sentimientoPct?.negativo || 0}
+                        colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
+                    />
                   </div>
 
                   <div>
