@@ -10,6 +10,8 @@ import { useAuth } from "@/components/auth-provider";
 import { AdminPopup } from "@/components/admin-popup";
 import { ColombiaMapEditor } from "@/components/colombia-map-editor";
 import { COLOMBIA_DEPARTAMENTOS } from "@/data/colombia-departamentos";
+import { LiveTicker } from "@/components/live-ticker";
+import { SentimentDonut } from "@/components/sentiment-donut";
 import { faInstagram } from "@fortawesome/free-brands-svg-icons";
 import { faRotate, faArrowTrendUp, faArrowTrendDown, faLocationDot, faMapLocationDot, faLayerGroup } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -75,13 +77,14 @@ const DepartmentDetail = ({ dep }: { dep: any }) => {
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
         <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-        <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
-          <div style={{ width: `${pct.positivo}%`, background: sentimentColors.positivo }} />
-          <div style={{ width: `${pct.neutral}%`, background: sentimentColors.neutral }} />
-          <div style={{ width: `${pct.negativo}%`, background: sentimentColors.negativo }} />
-        </div>
+        <SentimentDonut
+          positivo={pct.positivo || 0}
+          neutral={pct.neutral || 0}
+          negativo={pct.negativo || 0}
+          colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
+        />
       </div>
 
       {dep.topHashtags?.length > 0 && (
@@ -187,15 +190,28 @@ export default function MapaColombiaPage() {
     ];
   }, [data, sortedDeps]);
 
-  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center">Cargando mapa de Colombia...</div>;
+  if (loading) return <div className="h-screen page-bg text-white flex justify-center items-center">Cargando mapa de Colombia...</div>;
 
   return (
-    <div className="flex flex-col p-6 gap-6 bg-[#03060d] text-white">
+    <div className="flex flex-col p-6 gap-6 page-bg text-white">
       <div className="space-y-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Conversación Nacional - UT Actores Electorales</h1>
+          <h1 className="text-4xl font-bold tracking-tight gradient-text text-glow-blue">Conversación Nacional - UT Actores Electorales</h1>
           <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias nacionales de la Unión Temporal Actores Electorales. Haz clic en un marcador para ver el detalle.</p>
         </div>
+
+        {sortedDeps.length > 0 && (
+          <LiveTicker
+            liveLabel="En vivo"
+            items={sortedDeps.slice(0, 14).map((d) => ({
+              code: d.id,
+              label: d.label ?? d.pais,
+              value: d.volumen,
+              pct: d.pctCambio || 0,
+              color: "#E1306C",
+            }))}
+          />
+        )}
 
         <KpiCards items={kpis} />
 
@@ -210,7 +226,7 @@ export default function MapaColombiaPage() {
       </div>
 
       <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full">
+        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full neon-frame rounded-xl">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
             <Globe
               className="h-full"

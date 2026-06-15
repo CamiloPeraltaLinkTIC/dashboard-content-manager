@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  console.log('--- MIDDLEWARE EXECUTING ---');
+export async function proxy(request: NextRequest) {
+  console.log('--- PROXY EXECUTING ---');
   console.log('Path:', request.nextUrl.pathname);
 
   let response = NextResponse.next({
@@ -37,9 +37,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (e) {
+    // Supabase inalcanzable (DNS/red transitoria): no tumbar toda la app.
+    // Fail-open: se deja pasar la petición; la sesión se revalida en el próximo request.
+    console.warn('Proxy: no se pudo verificar la sesión (Supabase inalcanzable):', (e as Error)?.message)
+    return response
+  }
 
   console.log('User found:', user ? user.email : 'None');
 

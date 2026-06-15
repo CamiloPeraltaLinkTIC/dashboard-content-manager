@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Globe from "react-globe.gl";
+import * as THREE from "three";
 import * as topojson from "topojson-client";
 import { Topology } from "topojson-specification";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,33 @@ const getVolumeColor = (volumen: number) => {
     if (volumen > 0) return intensityColors.baja;
     return intensityColors.sinDatos;
 };
+
+// Sede del CNE (Bogotá): destino de todos los arcos de conversación global.
+const COLOMBIA_HQ = { lat: 4.5, lng: -74.3 };
+
+// Convierte "rgb(r, g, b)" en "rgba(r, g, b, a)" para los anillos animados.
+const toRgba = (rgb: string, alpha: number) => {
+    if (!rgb) return `rgba(243, 177, 22, ${alpha})`;
+    if (rgb.startsWith("rgba")) return rgb;
+    if (rgb.startsWith("rgb")) return rgb.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
+    return rgb; // hex u otro formato: se devuelve tal cual
+};
+
+// Heurística de "dispositivo de gama baja": pocos núcleos, poca RAM, pantalla
+// pequeña o preferencia de movimiento reducido. Se usa para bajar la calidad
+// del render (pixel ratio, antialias, conteo de estrellas, segmentos, arcos).
+const detectLowEnd = () => {
+    if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+    const n = navigator as any;
+    const cores = n.hardwareConcurrency || 8;
+    const mem = n.deviceMemory || 8;
+    const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 700;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    return cores <= 4 || mem <= 4 || smallScreen || reduce;
+};
+
+const prefersReducedMotion = () =>
+    typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
 
 const nameMapping: Record<string, string> = {
   "United States of America": "Estados Unidos",
@@ -157,6 +185,15 @@ export function GlobeComponent({
   const tourTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentIndexRef = useRef(0);
   const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cloudsRef = useRef<THREE.Mesh | null>(null);
+  const starsRef = useRef<THREE.Points | null>(null);
+  const cloudAnimRef = useRef<number | null>(null);
+  // Marca el país hacia el que el tour está moviendo la cámara, para que el efecto
+  // de sincronización no dispare una segunda animación (evita el "mini salto").
+  const tourMoveRef = useRef<string | null>(null);
+  // Calidad adaptativa: el componente solo se monta en cliente (dynamic ssr:false),
+  // así que podemos detectar la gama del dispositivo de forma síncrona.
+  const [lowEnd] = useState(detectLowEnd);
 
   // Derived data for popup
   const selectedData = useMemo(() => 
@@ -240,25 +277,38 @@ export function GlobeComponent({
     }
   };
 
-  // Sync point of view when selectedCountryId changes externally (Manual selection)
+  // Única fuente de movimiento de cámara: se dispara cuando cambia selectedCountryId
+  // (ya sea por el tour automático o por selección manual). Así nunca compiten dos
+  // animaciones y la transición es fluida.
   useEffect(() => {
     if (selectedCountryId && globeEl.current) {
         const countryData = countriesData.find(c => c.id === selectedCountryId);
         if (countryData) {
-            // STOP TOUR if it's a manual selection from outside (like the ranking)
-            if (activeTourCountryId !== selectedCountryId) {
+            // ¿El cambio lo originó el tour? (lo marcó tourMoveRef antes de onSelect)
+            const isTourDriven = tourMoveRef.current === selectedCountryId;
+
+            if (isTourDriven) {
+                tourMoveRef.current = null; // consumir la marca
+                setActiveTourCountryId(selectedCountryId);
+                globeEl.current.pointOfView(
+                    { lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude },
+                    2600 // transición larga y suave del tour
+                );
+            } else if (selectedCountryId !== activeTourCountryId) {
+                // Selección manual real (ranking, clic): se detiene el tour.
                 setIsTourActive(false);
                 setActiveTourCountryId(selectedCountryId);
-                
-                // Update tour index to resume from here if re-activated
                 const tourCountries = mode === 'witnesses'
                     ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
                     : countriesData.filter(c => c.volumen > 0);
                 const newIdx = tourCountries.findIndex(c => c.id === selectedCountryId);
                 if (newIdx !== -1) currentIndexRef.current = newIdx;
+                globeEl.current.pointOfView(
+                    { lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude },
+                    1400 // más ágil para clics manuales
+                );
             }
-
-            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude }, 2000);
+            // Si no cambió el país (p. ej. refetch de datos) no se hace nada: el tour sigue.
         }
     } else if (!selectedCountryId) {
         setActiveTourCountryId(null);
@@ -289,21 +339,19 @@ export function GlobeComponent({
         }
         
         const countryData = tourCountries[currentIndexRef.current % tourCountries.length];
-        
-        // ACTIVATE EVERYTHING INSTANTLY
+
+        // Marca el destino para que el efecto de sync mueva la cámara una sola vez.
+        tourMoveRef.current = countryData.id;
         setActiveTourCountryId(countryData.id);
         onSelect(countryData.id);
-        
-        if (globeEl.current) {
-            globeEl.current.pointOfView({ lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude }, 2000);
 
-            tourTimeoutRef.current = setTimeout(() => {
-                if (isTourActive) {
-                    currentIndexRef.current++;
-                    runTour();
-                }
-            }, 7000);
-        }
+        // La cámara la anima el efecto de sincronización (transición única y fluida).
+        tourTimeoutRef.current = setTimeout(() => {
+            if (isTourActive) {
+                currentIndexRef.current++;
+                runTour();
+            }
+        }, 7000);
     };
 
     tourTimeoutRef.current = setTimeout(runTour, 1000);
@@ -388,6 +436,82 @@ export function GlobeComponent({
     }
     return elements;
   }, [activeTourCountryId, hoveredCountry, countriesData]);
+
+  // --- Arcos de flujo: cada país conversa "hacia" Colombia (HQ) ---
+  // El grosor y la velocidad del trazo dependen del volumen; el color, del
+  // sentimiento del país (degradado país -> dorado del HQ).
+  const volumeOf = useCallback(
+    (c: any) => (selectedPlatform ? (c.plataformas as any)?.[selectedPlatform] || 0 : c.volumen || 0),
+    [selectedPlatform]
+  );
+
+  const arcsData = useMemo(() => {
+    if (mode === "witnesses") return [];
+    let active = countriesData.filter(
+      (c) => c.id !== "CO" && c.lat && c.lng && volumeOf(c) > 0
+    );
+    if (active.length === 0) return [];
+    const maxVol = Math.max(...active.map(volumeOf), 1);
+    // En gama baja, solo los 20 países con más volumen para aligerar el render.
+    if (lowEnd) {
+      active = [...active].sort((a, b) => volumeOf(b) - volumeOf(a)).slice(0, 20);
+    }
+    return active.map((c) => {
+      const vol = volumeOf(c);
+      const ratio = vol / maxVol;
+      const color = sentimentColors[c.sentimiento] || sentimentColors.neutral || "#3b82f6";
+      const highlighted = c.id === selectedCountryId || c.id === activeTourCountryId;
+      return {
+        startLat: c.lat,
+        startLng: c.lng,
+        endLat: COLOMBIA_HQ.lat,
+        endLng: COLOMBIA_HQ.lng,
+        color: [toRgba(color, highlighted ? 0.95 : 0.55), "rgba(243, 177, 22, 0.9)"],
+        stroke: Math.max(0.25, ratio * 1.6) * (highlighted ? 1.6 : 1),
+        // Más volumen -> dash más rápido (menor tiempo de animación).
+        animTime: 4500 - ratio * 2500,
+        // Desfase inicial pseudo-aleatorio para que los destellos no viajen en sincronía.
+        dashInitialGap: ((c.lat * 13 + c.lng * 7) % 100) / 100,
+      };
+    });
+  }, [countriesData, mode, volumeOf, sentimentColors, selectedCountryId, activeTourCountryId, lowEnd]);
+
+  // --- Anillos pulsantes en los focos más activos ---
+  const ringsData = useMemo(() => {
+    if (mode === "witnesses") return [];
+    const active = countriesData.filter((c) => c.id !== "CO" && c.lat && c.lng && volumeOf(c) > 0);
+    if (active.length === 0) return [];
+    const maxVol = Math.max(...active.map(volumeOf), 1);
+    const hotspots = [...active]
+      .sort((a, b) => volumeOf(b) - volumeOf(a))
+      .slice(0, 6)
+      .map((c) => {
+        const ratio = volumeOf(c) / maxVol;
+        return {
+          lat: c.lat,
+          lng: c.lng,
+          color: sentimentColors[c.sentimiento] || sentimentColors.neutral || "rgb(59,130,246)",
+          maxR: 3 + ratio * 5,
+          speed: 1.5 + ratio * 2,
+          period: 1400 - ratio * 600,
+        };
+      });
+    // Onda expansiva permanente desde la sede del CNE (Colombia) en dorado.
+    const hqRing = {
+      lat: COLOMBIA_HQ.lat,
+      lng: COLOMBIA_HQ.lng,
+      color: "rgb(243, 177, 22)",
+      maxR: 9,
+      speed: 3,
+      period: 1600,
+    };
+    return [hqRing, ...hotspots];
+  }, [countriesData, mode, volumeOf, sentimentColors]);
+
+  const ringColorInterpolator = useCallback(
+    (d: any) => (t: number) => toRgba(d.color, Math.max(0, 0.85 - t)),
+    []
+  );
 
   // --- Accesores memoizados del globo ---
   // Mantienen identidad estable entre renders para que react-globe.gl no
@@ -523,6 +647,196 @@ export function GlobeComponent({
     return () => clearInterval(id);
   }, [initialPov]);
 
+  // Realismo del planeta + starfield, con calidad escalada según el dispositivo:
+  // océanos especulares, luz solar, capa de nubes visible y campo de estrellas 3D
+  // con parallax. En gama baja se reduce pixel ratio, segmentos y conteo de estrellas.
+  useEffect(() => {
+    let cancelled = false;
+    let tries = 0;
+    const reduce = prefersReducedMotion();
+
+    const setup = () => {
+      const g = globeEl.current;
+      if (cancelled) return;
+      // Nota: globeMaterial() NO existe en el ref de react-globe.gl 2.38, así que
+      // NO se exige aquí (se valida aparte en el paso especular).
+      if (!g || typeof g.scene !== "function" || typeof g.getGlobeRadius !== "function" || typeof g.renderer !== "function") {
+        if (tries++ < 40) setTimeout(setup, 150);
+        return;
+      }
+
+      const scene = g.scene();
+      const globeRadius = g.getGlobeRadius();
+      // El radio puede no estar listo en los primeros frames: reintentar si es inválido.
+      if (!globeRadius || globeRadius <= 0) {
+        if (tries++ < 40) setTimeout(setup, 150);
+        return;
+      }
+
+      // Idempotencia: elimina capas previas (re-ejecución por HMR/StrictMode) para
+      // no acumular nubes/estrellas/luces ni dejar versiones viejas más tenues.
+      ["cne-clouds", "cne-starfield", "cne-sun-light"].forEach((nm) => {
+        const old: any = scene.getObjectByName(nm);
+        if (old) {
+          scene.remove(old);
+          old.geometry?.dispose?.();
+          old.material?.map?.dispose?.();
+          old.material?.alphaMap?.dispose?.();
+          old.material?.dispose?.();
+        }
+      });
+
+      // 0) Pixel ratio adaptativo (nitidez vs. rendimiento) y anisotropía máxima
+      //    del GPU para texturas nítidas en ángulos rasantes.
+      let maxAniso = 1;
+      try {
+        const cap = lowEnd ? 1.25 : 2;
+        g.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
+        maxAniso = g.renderer().capabilities?.getMaxAnisotropy?.() ?? 1;
+        // setPixelRatio solo aplica en el próximo setSize; forzamos un resize.
+        window.dispatchEvent(new Event("resize"));
+      } catch {
+        // renderer no accesible aún
+      }
+
+      // 1) Océanos especulares: el agua refleja la luz (omitido en gama baja).
+      //    globeMaterial() puede no existir en esta versión: se valida antes de usar.
+      if (!lowEnd && typeof g.globeMaterial === "function") {
+        try {
+          const mat: any = g.globeMaterial();
+          new THREE.TextureLoader().load("/earth_specular.jpg", (tex) => {
+            if (cancelled) return;
+            mat.specularMap = tex;
+            if ("specular" in mat) mat.specular = new THREE.Color("#3a6ea5");
+            if ("shininess" in mat) mat.shininess = 14;
+            mat.needsUpdate = true;
+          });
+        } catch {
+          // material no compatible
+        }
+      }
+
+      // 2) Luz solar para relieve y brillo especular.
+      try {
+        const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+        sun.position.set(-1.5, 0.8, 1.2);
+        sun.name = "cne-sun-light";
+        scene.add(sun);
+      } catch {
+        // sin escena accesible
+      }
+
+      // 3) Campo de estrellas 3D (Points = una sola draw call, muy barato). El
+      //    parallax surge solo: las estrellas quedan fijas mientras la cámara orbita.
+      try {
+        const starCount = lowEnd ? 700 : 2200;
+        const positions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+          // Distribución uniforme sobre una cáscara esférica lejana, con profundidad variable.
+          const u = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+          const v = (Math.sin(i * 78.233) * 12543.4521) % 1;
+          const theta = Math.abs(u) * 2 * Math.PI;
+          const phi = Math.acos(2 * Math.abs(v) - 1);
+          const r = globeRadius * (8 + (Math.abs(Math.sin(i * 3.1)) * 8));
+          positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          positions[i * 3 + 2] = r * Math.cos(phi);
+        }
+        const starGeo = new THREE.BufferGeometry();
+        starGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        const starMat = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: lowEnd ? 1.1 : 1.5,
+          sizeAttenuation: true,
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+        });
+        const stars = new THREE.Points(starGeo, starMat);
+        stars.name = "cne-starfield";
+        scene.add(stars);
+        starsRef.current = stars;
+      } catch {
+        // sin soporte de Points
+      }
+
+      // 4) Capa de nubes en alta resolución (Solar System Scope, CC BY 4.0):
+      //    nubes blancas sobre negro. Se usa la textura DIRECTO como alphaMap (el
+      //    negro -> transparente, el blanco -> nube), con filtrado nativo del GPU
+      //    (anisotropía + mipmaps) para máxima nitidez. 4K en gama alta, 2K en baja.
+      const cloudUrl = lowEnd ? "/earth_clouds_2k.jpg" : "/earth_clouds_4k.jpg";
+      new THREE.TextureLoader().load(cloudUrl, (cloudTex) => {
+        if (cancelled || !globeEl.current) return;
+
+        cloudTex.anisotropy = maxAniso;
+        cloudTex.minFilter = THREE.LinearMipmapLinearFilter;
+        cloudTex.magFilter = THREE.LinearFilter;
+        cloudTex.generateMipmaps = true;
+        cloudTex.needsUpdate = true;
+
+        const seg = lowEnd ? 48 : 96;
+        const radius = globeRadius * 1.02;
+        const clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(radius, seg, seg),
+          new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            alphaMap: cloudTex,     // luminancia de la textura = densidad de nube
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+          })
+        );
+        clouds.name = "cne-clouds";
+        clouds.renderOrder = 2;
+        globeEl.current.scene().add(clouds);
+        cloudsRef.current = clouds;
+      });
+
+      // 5) Animación única (nubes + leve giro de estrellas), salvo movimiento reducido.
+      if (!reduce) {
+        const animate = () => {
+          if (cancelled) return;
+          if (!document.hidden) {
+            if (cloudsRef.current) cloudsRef.current.rotation.y += (-0.006 * Math.PI) / 180;
+            if (starsRef.current && !lowEnd) starsRef.current.rotation.y += (0.0008 * Math.PI) / 180;
+          }
+          cloudAnimRef.current = requestAnimationFrame(animate);
+        };
+        animate();
+      }
+    };
+
+    setup();
+
+    return () => {
+      cancelled = true;
+      if (cloudAnimRef.current) cancelAnimationFrame(cloudAnimRef.current);
+      const g = globeEl.current;
+      const disposeObj = (obj: any) => {
+        if (!obj) return;
+        try { g?.scene?.().remove(obj); } catch { /* escena destruida */ }
+        obj.geometry?.dispose?.();
+        const m = obj.material;
+        if (Array.isArray(m)) m.forEach((mm: any) => mm?.dispose?.());
+        else m?.dispose?.();
+        m?.map?.dispose?.();
+        m?.alphaMap?.dispose?.();
+      };
+      disposeObj(cloudsRef.current);
+      disposeObj(starsRef.current);
+      cloudsRef.current = null;
+      starsRef.current = null;
+      if (g?.scene) {
+        try {
+          const sun = g.scene().getObjectByName("cne-sun-light");
+          if (sun) g.scene().remove(sun);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [lowEnd]);
+
   return (
     <div 
         ref={containerRef}
@@ -573,7 +887,7 @@ export function GlobeComponent({
         .globe-tooltip .sentiment { color: #2eb88a; font-weight: 800; font-size: 13px; text-transform: capitalize; }
         .globe-tooltip .footer { font-size: 11px; color: #64748b; margin-top: 14px; text-align: center; }
       `}</style>
-      
+
       {isFullscreen && (
           <div className="absolute top-8 left-0 right-0 text-center z-[100] animate-in fade-in slide-in-from-top-4 duration-1000">
               <h1 className="text-3xl font-black tracking-[0.2em] text-white uppercase opacity-90 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
@@ -718,14 +1032,36 @@ export function GlobeComponent({
       <Globe
         ref={globeEl}
         onGlobeReady={handleGlobeReady}
+        rendererConfig={{ antialias: !lowEnd, powerPreference: lowEnd ? "low-power" : "high-performance" }}
         width={isFullscreen ? undefined : undefined}
         height={isFullscreen ? undefined : undefined}
         globeImageUrl="/earth_day.jpg"
         bumpImageUrl="/earth_normal.jpg"
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
-        
+
+        showAtmosphere={true}
+        atmosphereColor="#4aa3ff"
+        atmosphereAltitude={lowEnd ? 0.22 : 0.28}
+
         htmlElementsData={htmlElements}
         htmlElement={htmlElement}
+
+        arcsData={arcsData}
+        arcColor={"color"}
+        arcStroke={"stroke"}
+        arcDashLength={0.4}
+        arcDashGap={0.18}
+        arcDashInitialGap={"dashInitialGap"}
+        arcDashAnimateTime={"animTime"}
+        arcsTransitionDuration={800}
+        arcAltitudeAutoScale={0.45}
+        arcCurveResolution={lowEnd ? 32 : 64}
+
+        ringsData={ringsData}
+        ringColor={ringColorInterpolator}
+        ringMaxRadius={"maxR"}
+        ringPropagationSpeed={"speed"}
+        ringRepeatPeriod={"period"}
 
         polygonsData={features}
         polygonLabel={polygonLabel}

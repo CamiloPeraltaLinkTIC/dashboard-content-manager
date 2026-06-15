@@ -4,6 +4,8 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
+import { CountUp } from "@/components/count-up";
+import { SentimentDonut } from "@/components/sentiment-donut";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -33,7 +35,7 @@ const platformConfig: Record<string, { color: string; icon: any; name: string }>
 const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformColors, BrandIcon }: any) => {
     if (!country) return null;
     return (
-        <div className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white">
+        <div key={country.id} className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                     <span className="font-mono text-2xl font-bold text-slate-400">{country.id}</span>
@@ -51,7 +53,7 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#161d2b] p-4 rounded-xl">
-                    <p className="text-2xl font-bold text-yellow-500">{country.volumen.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-yellow-500 tabular-nums"><CountUp value={country.volumen} /></p>
                     <p className="text-xs text-slate-400">menciones hoy</p>
                     <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {country.pctCambio}%</p>
                 </div>
@@ -62,24 +64,14 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
                 </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
                 <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-                <div className="flex rounded-full overflow-hidden h-2.5 bg-white/5">
-                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.positivo}%`, background: sentimentColors.positivo }}></div>
-                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.neutral}%`, background: sentimentColors.neutral }}></div>
-                    <div className="transition-all duration-700 ease-out" style={{ width: `${country.sentimientoPct.negativo}%`, background: sentimentColors.negativo }}></div>
-                </div>
-                <div className="flex text-[10px] font-medium leading-none">
-                    <div style={{ width: `${country.sentimientoPct.positivo}%`, color: sentimentColors.positivo }} className="truncate pr-1">
-                        {country.sentimientoPct.positivo > 0 && `${country.sentimientoPct.positivo}%`}
-                    </div>
-                    <div style={{ width: `${country.sentimientoPct.neutral}%`, color: sentimentColors.neutral }} className="text-center truncate px-1">
-                        {country.sentimientoPct.neutral > 0 && `${country.sentimientoPct.neutral}%`}
-                    </div>
-                    <div style={{ width: `${country.sentimientoPct.negativo}%`, color: sentimentColors.negativo }} className="text-right truncate pl-1">
-                        {country.sentimientoPct.negativo > 0 && `${country.sentimientoPct.negativo}%`}
-                    </div>
-                </div>
+                <SentimentDonut
+                    positivo={country.sentimientoPct?.positivo || 0}
+                    neutral={country.sentimientoPct?.neutral || 0}
+                    negativo={country.sentimientoPct?.negativo || 0}
+                    colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
+                />
             </div>
 
             <div>
@@ -641,21 +633,46 @@ export default function MapaPage() {
     ];
   }, [countriesData, selectedPlatform]);
 
-  if (loadingDb) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center">Cargando base de datos global...</div>;
+  if (loadingDb) return <div className="h-screen page-bg text-white flex justify-center items-center">Cargando base de datos global...</div>;
 
   return (
-    <div className="flex flex-col p-6 gap-6 bg-[#03060d] text-white">
+    <div className="flex flex-col p-6 gap-6 page-bg text-white">
       <div className="space-y-4">
         <div className="flex gap-2">
             <span className="bg-[#1e293b] text-blue-400 text-xs px-2 py-1 rounded-full border border-blue-500/20">🌐 MAPA GLOBAL</span>
-            <span className="bg-[#0f291e] text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/20">● EN TIEMPO REAL</span>
+            <span className="inline-flex items-center gap-2 bg-[#0f291e] text-green-400 text-xs px-2.5 py-1 rounded-full border border-green-500/20"><span className="live-dot" style={{ background: "#34d399", boxShadow: "0 0 8px #34d399" }} /> EN TIEMPO REAL</span>
             <span className="bg-[#1e293b] text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-500/20 uppercase">ACTUALIZADO {timeAgo}</span>
         </div>
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Conversación Global — CNE Colombia</h1>
+          <h1 className="text-4xl font-bold tracking-tight gradient-text text-glow-blue">Conversación Global — CNE Colombia</h1>
           <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias internacionales del Consejo Nacional Electoral de Colombia. Haz clic en un marcador para ver el detalle.</p>
         </div>
-        
+
+        {sortedCountries.length > 0 && (
+          <div className="relative flex items-center rounded-full border border-white/10 bg-[#0b101d]/80 overflow-hidden backdrop-blur-sm">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600/25 to-transparent shrink-0 z-10">
+              <span className="live-dot" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-red-300">En vivo</span>
+            </div>
+            <div className="marquee flex-1 py-2">
+              <div className="marquee-track">
+                {[...sortedCountries.slice(0, 14), ...sortedCountries.slice(0, 14)].map((c: any, i: number) => {
+                  const vol = selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen;
+                  const up = (c.pctCambio || 0) >= 0;
+                  return (
+                    <span key={i} className="inline-flex items-center gap-2 px-5 text-sm border-r border-white/5">
+                      <span className="font-mono text-[11px] text-slate-500">{c.id}</span>
+                      <span className="text-slate-200">{c.pais}</span>
+                      <span className="font-semibold text-yellow-500 tabular-nums">{vol.toLocaleString()}</span>
+                      <span className={`text-xs font-semibold ${up ? "text-green-400" : "text-red-400"}`}>{up ? "▲" : "▼"} {Math.abs(c.pctCambio || 0)}%</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         <KpiCards items={dynamicKpis} />
 
         <div className="flex gap-4 items-center mt-4">
@@ -670,7 +687,7 @@ export default function MapaPage() {
       </div>
 
       <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full">
+        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full neon-frame rounded-xl">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
             <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} countriesData={countriesData} globeMarkers={globeMarkers} sentimentColors={sentimentColors} platformColors={platformColors} />
           </Suspense>

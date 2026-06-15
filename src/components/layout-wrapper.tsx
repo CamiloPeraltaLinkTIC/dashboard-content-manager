@@ -16,6 +16,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthProvider>
+      <div className="app-aurora" aria-hidden="true" />
       <SidebarProvider className="h-screen overflow-hidden">
         <AppSidebar />
         <SidebarInset className="flex flex-col h-screen overflow-hidden">

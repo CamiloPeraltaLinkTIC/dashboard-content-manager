@@ -23,8 +23,9 @@ export function PageHeader({ badges, title, description }: PageHeaderProps) {
           </Badge>
         ))}
       </div>
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-      <p className="text-sm text-muted-foreground mt-1">{description}</p>
+      <h1 className="text-2xl font-bold tracking-tight gradient-text">{title}</h1>
+      <div className="accent-bar mt-2" />
+      <p className="text-sm text-muted-foreground mt-2">{description}</p>
     </div>
   );
 }

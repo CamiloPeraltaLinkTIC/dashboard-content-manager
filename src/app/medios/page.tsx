@@ -208,10 +208,10 @@ export default function MediosPage() {
     }));
   }, [profiles]);
 
-  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Conversación en Medios...</div>;
+  if (loading) return <div className="h-screen page-bg text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Conversación en Medios...</div>;
 
   return (
-    <div className="bg-[#03060d] text-white p-6">
+    <div className="page-bg text-white p-6">
       {/* Header Section */}
       <div className="mb-8 flex justify-between items-center">
         <div>
@@ -219,7 +219,7 @@ export default function MediosPage() {
               <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20 uppercase font-black">MEDIOS DE COMUNICACIÓN</span>
               <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-white/10 uppercase">ACTUALIZADO {timeAgo}</span>
           </div>
-          <h1 className="text-3xl font-bold mb-1">Conversación en Medios</h1>
+          <h1 className="text-3xl font-bold mb-1 gradient-text text-glow-blue">Conversación en Medios</h1>
           <p className="text-slate-400 text-sm">Monitoreo de prensa, radio, TV y medios digitales sobre el proceso electoral.</p>
         </div>
         <div className="flex gap-3">
@@ -308,7 +308,7 @@ export default function MediosPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Weekly Chart */}
-        <Card className="lg:col-span-2 bg-[#0b101d] border border-white/5 p-6 rounded-2xl">
+        <Card className="lg:col-span-2 bg-[#0b101d] border border-white/5 p-6 rounded-2xl neon-frame">
             <div className="mb-8">
                 <h3 className="font-bold text-lg text-slate-200">Notas Publicadas esta Semana</h3>
                 <p className="text-xs text-slate-500">Distribución por sentimiento — últimos 7 días</p>

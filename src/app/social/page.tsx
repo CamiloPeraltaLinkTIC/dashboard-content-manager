@@ -11,7 +11,14 @@ import { Card } from "@/components/ui/card";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
+import { LiveTicker } from "@/components/live-ticker";
 import * as XLSX from 'xlsx';
+
+const feedSentimentColor: Record<string, string> = {
+  positivo: "rgb(46, 184, 138)",
+  negativo: "rgb(223, 58, 58)",
+  neutral: "rgb(243, 177, 22)",
+};
 
 const platformConfig: Record<string, { color: string; icon: any; name: string }> = {
   Instagram: { color: "#E1306C", icon: faInstagram, name: "Instagram" },
@@ -173,10 +180,10 @@ export default function SocialPage() {
         : feed;
   }, [selectedPlatform, feed]);
 
-  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Inteligencia Social...</div>;
+  if (loading) return <div className="h-screen page-bg text-white flex justify-center items-center font-mono tracking-widest uppercase animate-pulse">Cargando Inteligencia Social...</div>;
 
   return (
-    <div className="bg-[#03060d] text-white p-6">
+    <div className="page-bg text-white p-6">
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
         <div>
@@ -184,7 +191,7 @@ export default function SocialPage() {
             <span className="bg-[#1e293b] text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-blue-500/20 uppercase font-bold tracking-tight">ESTRATEGIA DIGITAL</span>
             <span className="bg-[#1e293b] text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-white/10 uppercase">ACTUALIZADO {timeAgo}</span>
           </div>
-          <h1 className="text-3xl font-bold mb-1">Conversación en Redes Sociales</h1>
+          <h1 className="text-3xl font-bold mb-1 gradient-text text-glow-blue">Conversación en Redes Sociales</h1>
           <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
         </div>
         <div className="flex gap-2">
@@ -209,6 +216,20 @@ export default function SocialPage() {
             </Button>
         </div>
       </div>
+
+      {feed.length > 0 && (
+        <div className="mb-6">
+          <LiveTicker
+            liveLabel="Feed"
+            items={feed.slice(0, 16).map((post: any) => ({
+              code: (post.red || "").toUpperCase(),
+              label: `@${post.usuario}`,
+              value: (post.tipo || "neutral").charAt(0).toUpperCase() + (post.tipo || "neutral").slice(1),
+              color: feedSentimentColor[(post.tipo || "neutral").toLowerCase()] || "#94a3b8",
+            }))}
+          />
+        </div>
+      )}
 
       {/* Platform Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -368,12 +389,12 @@ export default function SocialPage() {
       </div>
 
       {/* Feed */}
-      <div className="bg-[#0b101d] border border-white/5 rounded-2xl p-6 mb-20">
+      <div className="bg-[#0b101d] border border-white/5 rounded-2xl p-6 mb-20 neon-frame">
         <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
                 <span className="text-yellow-500 font-bold text-xl">⚡</span>
                 <h1 className="text-xl font-bold">Feed en Vivo</h1>
-                <span className="bg-[#0f291e] text-green-400 text-[10px] px-2 py-0.5 rounded-full border border-green-500/20">● EN TIEMPO REAL</span>
+                <span className="inline-flex items-center gap-2 bg-[#0f291e] text-green-400 text-[10px] px-2.5 py-0.5 rounded-full border border-green-500/20"><span className="live-dot" style={{ background: "#34d399", boxShadow: "0 0 8px #34d399" }} /> EN TIEMPO REAL</span>
             </div>
             {isEditing && (
                 <Button size="sm" variant="ghost" className="text-[10px] font-black uppercase text-blue-400" onClick={() => setFeed([{ red: 'X', usuario: 'Nuevo', tiempo: 'Ahora', texto: '', tipo: 'neutral' }, ...feed])}>

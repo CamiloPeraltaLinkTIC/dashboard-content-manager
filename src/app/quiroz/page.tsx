@@ -429,10 +429,10 @@ export default function QuirozPage() {
     reader.readAsBinaryString(file);
   };
 
-  if (loading) return <div className="h-screen bg-[#03060d] text-white flex justify-center items-center font-mono animate-pulse uppercase tracking-widest">Cargando Estrategia Quiroz...</div>;
+  if (loading) return <div className="h-screen page-bg text-white flex justify-center items-center font-mono animate-pulse uppercase tracking-widest">Cargando Estrategia Quiroz...</div>;
 
   return (
-    <div className="p-6 bg-[#03060d] text-white relative">
+    <div className="p-6 page-bg text-white relative">
       <div className="flex justify-between items-start mb-2">
         <PageHeader badges={h.badges} title={h.title} description={h.description} />
         <div className="flex gap-2">

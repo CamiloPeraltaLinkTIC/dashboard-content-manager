@@ -75,7 +75,7 @@ export default function AdminPage() {
 
   if (role !== "admin") {
       return (
-          <div className="h-screen bg-[#03060d] text-white flex flex-col justify-center items-center gap-4">
+          <div className="h-screen page-bg text-white flex flex-col justify-center items-center gap-4">
               <FontAwesomeIcon icon={faLock} className="text-6xl text-red-500 mb-2" />
               <h1 className="text-2xl font-bold">Acceso No Autorizado</h1>
               <p className="text-slate-400">Esta página está reservada para administradores del sistema.</p>
@@ -87,7 +87,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-6 bg-[#03060d] text-white">
+    <div className="p-6 page-bg text-white">
       <PageHeader 
         title="Panel de Administración" 
         description="Administra los datos de los tableros que luego se leerán dinámicamente desde Supabase."
