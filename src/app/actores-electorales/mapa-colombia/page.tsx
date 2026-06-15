@@ -246,6 +246,7 @@ export default function MapaColombiaPage() {
               showFlag={false}
               unitLabel="menciones"
               initialTourActive={false}
+              plainGlobe
             />
           </Suspense>
         </Card>

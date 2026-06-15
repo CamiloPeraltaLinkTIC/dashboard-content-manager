@@ -148,6 +148,7 @@ interface GlobeProps {
     showFlag?: boolean;         // Mostrar bandera de país en tooltips (off para departamentos)
     unitLabel?: string;         // Etiqueta de la métrica (ej: "menciones")
     initialTourActive?: boolean; // Si el tour automático arranca activo (default true)
+    plainGlobe?: boolean;       // Globo "normal": sin arcos, anillos, nubes ni estrellas
 }
 
 export function GlobeComponent({
@@ -173,6 +174,7 @@ export function GlobeComponent({
     showFlag = true,
     unitLabel = "menciones",
     initialTourActive = true,
+    plainGlobe = false,
 }: GlobeProps) {
   const globeEl = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -446,7 +448,7 @@ export function GlobeComponent({
   );
 
   const arcsData = useMemo(() => {
-    if (mode === "witnesses") return [];
+    if (mode === "witnesses" || plainGlobe) return [];
     let active = countriesData.filter(
       (c) => c.id !== "CO" && c.lat && c.lng && volumeOf(c) > 0
     );
@@ -474,11 +476,11 @@ export function GlobeComponent({
         dashInitialGap: ((c.lat * 13 + c.lng * 7) % 100) / 100,
       };
     });
-  }, [countriesData, mode, volumeOf, sentimentColors, selectedCountryId, activeTourCountryId, lowEnd]);
+  }, [countriesData, mode, volumeOf, sentimentColors, selectedCountryId, activeTourCountryId, lowEnd, plainGlobe]);
 
   // --- Anillos pulsantes en los focos más activos ---
   const ringsData = useMemo(() => {
-    if (mode === "witnesses") return [];
+    if (mode === "witnesses" || plainGlobe) return [];
     const active = countriesData.filter((c) => c.id !== "CO" && c.lat && c.lng && volumeOf(c) > 0);
     if (active.length === 0) return [];
     const maxVol = Math.max(...active.map(volumeOf), 1);
@@ -506,7 +508,7 @@ export function GlobeComponent({
       period: 1600,
     };
     return [hqRing, ...hotspots];
-  }, [countriesData, mode, volumeOf, sentimentColors]);
+  }, [countriesData, mode, volumeOf, sentimentColors, plainGlobe]);
 
   const ringColorInterpolator = useCallback(
     (d: any) => (t: number) => toRgba(d.color, Math.max(0, 0.85 - t)),
@@ -654,6 +656,7 @@ export function GlobeComponent({
     let cancelled = false;
     let tries = 0;
     const reduce = prefersReducedMotion();
+    const sharpenTimers: ReturnType<typeof setTimeout>[] = [];
 
     const setup = () => {
       const g = globeEl.current;
@@ -699,6 +702,33 @@ export function GlobeComponent({
         // renderer no accesible aún
       }
 
+      // 0.5) Nitidez del PLANETA: aplica anisotropía a las texturas del globo
+      //      (day/bump). globeMaterial() no se expone, así que se recorre la escena.
+      //      Se reintenta porque las texturas del globo cargan de forma asíncrona.
+      const sharpenGlobe = () => {
+        try {
+          scene.traverse((obj: any) => {
+            if (!obj.isMesh || obj.name === "cne-clouds" || obj.name === "cne-starfield") return;
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m: any) => {
+              if (!m) return;
+              ["map", "bumpMap", "normalMap", "specularMap"].forEach((k) => {
+                if (m[k] && m[k].anisotropy !== maxAniso) {
+                  m[k].anisotropy = maxAniso;
+                  m[k].needsUpdate = true;
+                }
+              });
+            });
+          });
+        } catch {
+          // traverse no disponible
+        }
+      };
+      sharpenGlobe();
+      const sharpenT1 = setTimeout(() => { if (!cancelled) sharpenGlobe(); }, 1200);
+      const sharpenT2 = setTimeout(() => { if (!cancelled) sharpenGlobe(); }, 3000);
+      sharpenTimers.push(sharpenT1, sharpenT2);
+
       // 1) Océanos especulares: el agua refleja la luz (omitido en gama baja).
       //    globeMaterial() puede no existir en esta versión: se valida antes de usar.
       if (!lowEnd && typeof g.globeMaterial === "function") {
@@ -728,7 +758,7 @@ export function GlobeComponent({
 
       // 3) Campo de estrellas 3D (Points = una sola draw call, muy barato). El
       //    parallax surge solo: las estrellas quedan fijas mientras la cámara orbita.
-      try {
+      if (!plainGlobe) try {
         const starCount = lowEnd ? 700 : 2200;
         const positions = new Float32Array(starCount * 3);
         for (let i = 0; i < starCount; i++) {
@@ -765,7 +795,7 @@ export function GlobeComponent({
       //    negro -> transparente, el blanco -> nube), con filtrado nativo del GPU
       //    (anisotropía + mipmaps) para máxima nitidez. 4K en gama alta, 2K en baja.
       const cloudUrl = lowEnd ? "/earth_clouds_2k.jpg" : "/earth_clouds_4k.jpg";
-      new THREE.TextureLoader().load(cloudUrl, (cloudTex) => {
+      if (!plainGlobe) new THREE.TextureLoader().load(cloudUrl, (cloudTex) => {
         if (cancelled || !globeEl.current) return;
 
         cloudTex.anisotropy = maxAniso;
@@ -793,7 +823,7 @@ export function GlobeComponent({
       });
 
       // 5) Animación única (nubes + leve giro de estrellas), salvo movimiento reducido.
-      if (!reduce) {
+      if (!reduce && !plainGlobe) {
         const animate = () => {
           if (cancelled) return;
           if (!document.hidden) {
@@ -811,6 +841,7 @@ export function GlobeComponent({
     return () => {
       cancelled = true;
       if (cloudAnimRef.current) cancelAnimationFrame(cloudAnimRef.current);
+      sharpenTimers.forEach(clearTimeout);
       const g = globeEl.current;
       const disposeObj = (obj: any) => {
         if (!obj) return;
@@ -835,7 +866,7 @@ export function GlobeComponent({
         }
       }
     };
-  }, [lowEnd]);
+  }, [lowEnd, plainGlobe]);
 
   return (
     <div 
