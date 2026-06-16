@@ -462,21 +462,25 @@ export function GlobeComponent({
       const vol = volumeOf(c);
       const ratio = vol / maxVol;
       const color = sentimentColors[c.sentimiento] || sentimentColors.neutral || "#3b82f6";
-      const highlighted = c.id === selectedCountryId || c.id === activeTourCountryId;
+      // Nota: NO se resalta por país seleccionado/tour. Si se hiciera, arcsData se
+      // recalcularía en cada paso del tour y react-globe.gl redibujaría toda la capa
+      // (desvanecido por arcsTransitionDuration) -> las líneas hacia Colombia
+      // "parpadean" y el globo da un mini salto. El país actual ya se enfatiza con
+      // el tooltip, el anillo pulsante y el enfoque de cámara.
       return {
         startLat: c.lat,
         startLng: c.lng,
         endLat: COLOMBIA_HQ.lat,
         endLng: COLOMBIA_HQ.lng,
-        color: [toRgba(color, highlighted ? 0.95 : 0.55), "rgba(243, 177, 22, 0.9)"],
-        stroke: Math.max(0.25, ratio * 1.6) * (highlighted ? 1.6 : 1),
+        color: [toRgba(color, 0.7), "rgba(243, 177, 22, 0.9)"],
+        stroke: Math.max(0.25, ratio * 1.6),
         // Más volumen -> dash más rápido (menor tiempo de animación).
         animTime: 4500 - ratio * 2500,
         // Desfase inicial pseudo-aleatorio para que los destellos no viajen en sincronía.
         dashInitialGap: ((c.lat * 13 + c.lng * 7) % 100) / 100,
       };
     });
-  }, [countriesData, mode, volumeOf, sentimentColors, selectedCountryId, activeTourCountryId, lowEnd, plainGlobe]);
+  }, [countriesData, mode, volumeOf, sentimentColors, lowEnd, plainGlobe]);
 
   // --- Anillos pulsantes en los focos más activos ---
   const ringsData = useMemo(() => {
