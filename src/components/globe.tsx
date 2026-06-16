@@ -811,7 +811,7 @@ export function GlobeComponent({
             color: 0xffffff,
             alphaMap: cloudTex,     // luminancia de la textura = densidad de nube
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.45,
             depthWrite: false,
           })
         );
