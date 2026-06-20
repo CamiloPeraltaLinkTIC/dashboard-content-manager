@@ -4,6 +4,7 @@ import { Suspense, useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
+import { canEdit } from "@/lib/auth/rbac";
 import { PageHeader } from "@/components/page-header";
 import { TopicTabs } from "@/components/topic-tabs";
 import { AdminPopup } from "@/components/admin-popup";
@@ -392,7 +393,7 @@ export default function TestigosPage() {
       <div className="flex justify-between items-start">
         <PageHeader badges={h.badges} title={h.title} description={h.description} />
         <div className="flex gap-2">
-            {role === "admin" && (
+            {canEdit(role) && (
                 !isEditing ? (
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
                         <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición

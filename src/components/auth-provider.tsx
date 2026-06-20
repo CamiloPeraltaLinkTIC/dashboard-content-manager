@@ -1,17 +1,28 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { normalizeRole, SCREEN_PREFIX, type AppRole } from "@/lib/auth/rbac";
 
-type Role = "admin" | "reader" | null;
+type Role = AppRole | null;
 
 interface AuthContextType {
   user: any;
   role: Role;
   firstName: string;
+  /** screen_keys "cne-tab:*" permitidos para el usuario actual. */
+  screens: string[];
+  /** Re-lee sesión, perfil y pantallas (lo usa AccessSync ante cambios). */
+  refresh: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, role: null, firstName: "" });
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  role: null,
+  firstName: "",
+  screens: [],
+  refresh: () => {},
+});
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -19,9 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<Role>(null);
   const [firstName, setFirstName] = useState<string>("");
+  const [screens, setScreens] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Prioriza el nombre guardado en profiles.full_name; si no, usa metadata o el usuario.
+  // Prioriza el nombre guardado en profiles.full_name; si no, metadata o email.
   const resolveFirstName = (u: any, profile?: any) => {
     const source =
       profile?.full_name ||
@@ -33,50 +45,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return source.split(/[\s@]/)[0] || "";
   };
 
-  useEffect(() => {
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_role, full_name")
-          .eq("id", session.user.id)
-          .single();
+  const loadFor = useCallback(async (sessionUser: any | null) => {
+    if (!sessionUser) {
+      setUser(null);
+      setRole(null);
+      setFirstName("");
+      setScreens([]);
+      return;
+    }
+    setUser(sessionUser);
+    const [{ data: profile }, { data: rows }] = await Promise.all([
+      supabase.from("profiles").select("user_role, full_name").eq("id", sessionUser.id).single(),
+      supabase
+        .from("user_screen_access")
+        .select("screen_key")
+        .eq("user_id", sessionUser.id)
+        .like("screen_key", `${SCREEN_PREFIX}%`),
+    ]);
+    setRole(normalizeRole(profile?.user_role));
+    setFirstName(resolveFirstName(sessionUser, profile));
+    setScreens((rows ?? []).map((r: { screen_key: string }) => r.screen_key));
+  }, []);
 
-        setRole(profile?.user_role || "reader");
-        setFirstName(resolveFirstName(session.user, profile));
-      }
+  const refresh = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    await loadFor(session?.user ?? null);
+  }, [loadFor]);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await loadFor(session?.user ?? null);
       setLoading(false);
     };
+    init();
 
-    getInitialSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      if (session) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_role, full_name")
-          .eq("id", session.user.id)
-          .single();
-        setRole(profile?.user_role || "reader");
-        setFirstName(resolveFirstName(session.user, profile));
-      } else {
-        setUser(null);
-        setRole(null);
-        setFirstName("");
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
+      await loadFor(session?.user ?? null);
       setLoading(false);
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadFor]);
 
   return (
-    <AuthContext.Provider value={{ user, role, firstName }}>
+    <AuthContext.Provider value={{ user, role, firstName, screens, refresh }}>
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -47,8 +47,9 @@ export async function signIn(prevState: AuthState, formData: FormData): Promise<
   if (error) {
     return { error: "Credenciales de acceso incorrectas" };
   }
-  
-  redirect("/mapa");
+
+  // El proxy resuelve la primera pantalla permitida (o /sin-acceso).
+  redirect("/");
 }
 
 export async function signOut() {

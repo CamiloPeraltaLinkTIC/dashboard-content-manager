@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGear } from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "./auth-provider";
+import { canEdit } from "@/lib/auth/rbac";
 
 export function AdminPopup({ children, title = "Panel de Administración", hideTrigger = false }: { children: React.ReactNode, title?: string, hideTrigger?: boolean }) {
   const { role } = useAuth();
 
-  if (role !== "admin") return null;
+  if (!canEdit(role)) return null;
 
   return (
     <Sheet>

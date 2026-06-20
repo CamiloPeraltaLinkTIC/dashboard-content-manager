@@ -1,14 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import {
+  normalizeRole,
+  hasAppAccess,
+  isPathAllowed,
+  firstAllowedPath,
+  SCREEN_PREFIX,
+} from '@/lib/auth/rbac'
 
 export async function proxy(request: NextRequest) {
-  console.log('--- PROXY EXECUTING ---');
-  console.log('Path:', request.nextUrl.pathname);
+  const path = request.nextUrl.pathname
 
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   })
 
   const supabase = createServerClient(
@@ -21,16 +25,12 @@ export async function proxy(request: NextRequest) {
         },
         set(name: string, value: string, options: any) {
           request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
+          response = NextResponse.next({ request: { headers: request.headers } })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: any) {
           request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
+          response = NextResponse.next({ request: { headers: request.headers } })
           response.cookies.set({ name, value: '', ...options })
         },
       },
@@ -42,26 +42,60 @@ export async function proxy(request: NextRequest) {
     const { data } = await supabase.auth.getUser()
     user = data.user
   } catch (e) {
-    // Supabase inalcanzable (DNS/red transitoria): no tumbar toda la app.
-    // Fail-open: se deja pasar la petición; la sesión se revalida en el próximo request.
-    console.warn('Proxy: no se pudo verificar la sesión (Supabase inalcanzable):', (e as Error)?.message)
+    // Supabase inalcanzable (DNS/red transitoria): fail-open, se revalida luego.
+    console.warn('Proxy: no se pudo verificar la sesión:', (e as Error)?.message)
     return response
   }
 
-  console.log('User found:', user ? user.email : 'None');
+  // Las rutas /api se autoprotegen (requireSuperadmin / getServerAccess) y deben
+  // devolver JSON, no redirecciones: solo refrescamos la sesión y pasamos.
+  if (path.startsWith('/api')) return response
 
-  // Protección: Si no hay usuario y no está en la página de login, redirigir a login
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
-    console.log('Redirecting to /login');
-    const url = new URL('/login', request.url)
-    return NextResponse.redirect(url)
+  // Sin sesión → al login (salvo que ya esté en /login).
+  if (!user) {
+    if (path.startsWith('/login')) return response
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Protección adicional: Si está logueado y va a login, redirigir al dashboard (ej. mapa)
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
-    console.log('Redirecting to /mapa (already logged in)');
-    const url = new URL('/mapa', request.url)
-    return NextResponse.redirect(url)
+  // Hay sesión: cargamos rol + pantallas de ESTE tablero (cne-tab:*).
+  const [{ data: profile }, { data: rows }] = await Promise.all([
+    supabase.from('profiles').select('user_role').eq('id', user.id).single(),
+    supabase
+      .from('user_screen_access')
+      .select('screen_key')
+      .eq('user_id', user.id)
+      .like('screen_key', `${SCREEN_PREFIX}%`),
+  ])
+  const access = {
+    role: normalizeRole(profile?.user_role),
+    screens: (rows ?? []).map((r: { screen_key: string }) => r.screen_key),
+  }
+  const landing = firstAllowedPath(access)
+
+  // Ya logueado visitando /login → a su pantalla (o a /sin-acceso).
+  if (path.startsWith('/login')) {
+    return NextResponse.redirect(new URL(landing ?? '/sin-acceso', request.url))
+  }
+
+  // No tiene acceso a este tablero → /sin-acceso.
+  if (!hasAppAccess(access)) {
+    if (path.startsWith('/sin-acceso')) return response
+    return NextResponse.redirect(new URL('/sin-acceso', request.url))
+  }
+
+  // Tiene acceso pero está en /sin-acceso → a su pantalla.
+  if (path.startsWith('/sin-acceso')) {
+    return NextResponse.redirect(new URL(landing ?? '/mapa', request.url))
+  }
+
+  // Raíz → primera pantalla permitida.
+  if (path === '/') {
+    return NextResponse.redirect(new URL(landing ?? '/mapa', request.url))
+  }
+
+  // Gating fino por pantalla (incluye /admin solo-superadmin).
+  if (!isPathAllowed(access, path)) {
+    return NextResponse.redirect(new URL(landing ?? '/mapa', request.url))
   }
 
   return response

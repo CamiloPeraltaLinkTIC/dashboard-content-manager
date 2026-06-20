@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/page-header";
 import { useAuth } from "@/components/auth-provider";
+import { canEdit } from "@/lib/auth/rbac";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +74,7 @@ export default function AdminPage() {
     setKpis(newKpis);
   };
 
-  if (role !== "admin") {
+  if (!canEdit(role)) {
       return (
           <div className="h-screen page-bg text-white flex flex-col justify-center items-center gap-4">
               <FontAwesomeIcon icon={faLock} className="text-6xl text-red-500 mb-2" />

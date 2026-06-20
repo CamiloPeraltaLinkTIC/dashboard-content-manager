@@ -11,7 +11,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 // Importar los iconos de FontAwesome
 import { faXTwitter, faTiktok, faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
-import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar } from "@fortawesome/free-solid-svg-icons";
+import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar, faLayerGroup, faHashtag, faChartColumn, faTriangleExclamation, faBolt, faShareNodes, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
 
 // Función para convertir un icono de FA a string SVG
 const faToSvg = (faIcon: any, color: string = "white") => {
@@ -44,6 +44,11 @@ const getVolumeColor = (volumen: number) => {
 
 // Sede del CNE (Bogotá): destino de todos los arcos de conversación global.
 const COLOMBIA_HQ = { lat: 4.5, lng: -74.3 };
+
+// Elemento HTML de la sede: referencia ESTABLE a nivel de módulo. Si se recreara
+// en cada recálculo de htmlElements, react-globe.gl reconstruiría su DOM y el
+// pulso reiniciaría su animación constantemente (efecto "parpadeo/reinicio").
+const HQ_ELEMENT = { lat: COLOMBIA_HQ.lat, lng: COLOMBIA_HQ.lng, type: "hq" as const };
 
 // Convierte "rgb(r, g, b)" en "rgba(r, g, b, a)" para los anillos animados.
 const toRgba = (rgb: string, alpha: number) => {
@@ -194,14 +199,44 @@ export function GlobeComponent({
   // Marca el país hacia el que el tour está moviendo la cámara, para que el efecto
   // de sincronización no dispare una segunda animación (evita el "mini salto").
   const tourMoveRef = useRef<string | null>(null);
+  // Estado previo del tour: permite distinguir un arranque manual (clic en "Giro")
+  // —que debe empezar YA— de una reejecución del efecto por hover/datos.
+  const prevTourActiveRef = useRef(initialTourActive);
   // Calidad adaptativa: el componente solo se monta en cliente (dynamic ssr:false),
   // así que podemos detectar la gama del dispositivo de forma síncrona.
   const [lowEnd] = useState(detectLowEnd);
 
+  // --- Capas visuales activables (panel "Capas") ---
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [showColumns, setShowColumns] = useState(false);   // columnas 3D de volumen
+  const [showHashtags, setShowHashtags] = useState(false); // burbujas de hashtag dominante
+  const [showAlerts, setShowAlerts] = useState(false);     // aura roja en sentimiento negativo
+  const [showNetwork, setShowNetwork] = useState(false);   // red país↔país por hashtag
+  const [showLivePings, setShowLivePings] = useState(false); // pulsos de actividad en vivo
+  // Narración IA: siempre activa en modo global (no es opcional).
+  // Revelado animado (build-up por volumen): null = todo visible; n = solo top-n revelados.
+  const [revealCount, setRevealCount] = useState<number | null>(null);
+  const revealTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Pulso de actividad "en vivo" más reciente (se renderiza como elemento HTML efímero).
+  const [livePing, setLivePing] = useState<{ lat: number; lng: number; color: string; key: number } | null>(null);
+  const pingSeqRef = useRef(0);
+  // Narración IA: texto del subtítulo y bandera de carga.
+  const [narratorText, setNarratorText] = useState<string>("");
+  const [narratorLoading, setNarratorLoading] = useState(false);
+  const narratorAbortRef = useRef<AbortController | null>(null);
+  const narratorCacheRef = useRef<Record<string, string>>({});
+
   // Derived data for popup
-  const selectedData = useMemo(() => 
-    countriesData.find(c => c.id === selectedCountryId), 
-  [selectedCountryId]);
+  const selectedData = useMemo(() =>
+    countriesData.find(c => c.id === selectedCountryId),
+  [selectedCountryId, countriesData]);
+
+  // Config del renderer: referencia ESTABLE. Un objeto inline en el JSX cambia de
+  // identidad en cada render y react-globe.gl reprocesa props estáticas innecesariamente.
+  const rendererConfig = useMemo(
+    () => ({ antialias: !lowEnd, powerPreference: (lowEnd ? "low-power" : "high-performance") as WebGLPowerPreference }),
+    [lowEnd]
+  );
 
   useEffect(() => {
     fetch(geoUrl)
@@ -280,6 +315,24 @@ export function GlobeComponent({
     }
   };
 
+  // Mueve la cámara a un país de forma fluida. globe.gl, al pedir un nuevo
+  // pointOfView, hace `.end()` del tween en curso, lo que SALTA la cámara al
+  // destino anterior antes de animar al nuevo (el "salto feo" al hacer clics
+  // rápidos). Para evitarlo, primero congelamos la animación en la posición
+  // ACTUAL (set con duración 0, sin frame intermedio visible) y luego animamos:
+  // así el nuevo tween parte de donde está la cámara, sin teletransporte.
+  const flyTo = useCallback((lat: number, lng: number, duration: number) => {
+    const g = globeEl.current;
+    if (!g?.pointOfView) return;
+    try {
+      const cur = g.pointOfView();
+      g.pointOfView(cur, 0);
+    } catch {
+      // getter/setter no disponible aún
+    }
+    g.pointOfView({ lat, lng, altitude: tourAltitude }, duration);
+  }, [tourAltitude]);
+
   // Única fuente de movimiento de cámara: se dispara cuando cambia selectedCountryId
   // (ya sea por el tour automático o por selección manual). Así nunca compiten dos
   // animaciones y la transición es fluida.
@@ -293,12 +346,14 @@ export function GlobeComponent({
             if (isTourDriven) {
                 tourMoveRef.current = null; // consumir la marca
                 setActiveTourCountryId(selectedCountryId);
-                globeEl.current.pointOfView(
-                    { lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude },
-                    2600 // transición larga y suave del tour
-                );
+                flyTo(countryData.lat, countryData.lng, 2600); // transición larga y suave del tour
             } else if (selectedCountryId !== activeTourCountryId) {
                 // Selección manual real (ranking, clic): se detiene el tour.
+                // Cancelar YA el temporizador pendiente del tour evita el "minisalto":
+                // si no, el tour alcanza a disparar un paso más y mueve la cámara a
+                // otro país compitiendo con la animación del clic manual.
+                if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
+                tourMoveRef.current = null;
                 setIsTourActive(false);
                 setActiveTourCountryId(selectedCountryId);
                 const tourCountries = mode === 'witnesses'
@@ -306,30 +361,33 @@ export function GlobeComponent({
                     : countriesData.filter(c => c.volumen > 0);
                 const newIdx = tourCountries.findIndex(c => c.id === selectedCountryId);
                 if (newIdx !== -1) currentIndexRef.current = newIdx;
-                globeEl.current.pointOfView(
-                    { lat: countryData.lat, lng: countryData.lng, altitude: tourAltitude },
-                    1400 // más ágil para clics manuales
-                );
+                flyTo(countryData.lat, countryData.lng, 1400); // más ágil para clics manuales
             }
             // Si no cambió el país (p. ej. refetch de datos) no se hace nada: el tour sigue.
         }
     } else if (!selectedCountryId) {
         setActiveTourCountryId(null);
     }
-  }, [selectedCountryId, countriesData, mode, globeMarkers]);
+  }, [selectedCountryId, countriesData, mode, globeMarkers, flyTo]);
 
   // Country-to-Country Tour Logic
   useEffect(() => {
     if (!isTourActive || !globeEl.current || features.length === 0) {
         if (globeEl.current) globeEl.current.controls().autoRotate = false;
         if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
+        prevTourActiveRef.current = false;
         return;
     }
+
+    // ¿El tour acaba de activarse (clic en "Giro")? Entonces arranca de inmediato;
+    // si el efecto sólo se reejecutó (hover/datos) se mantiene el retardo normal.
+    const startedByUser = !prevTourActiveRef.current;
+    prevTourActiveRef.current = true;
 
     const tourCountries = mode === 'witnesses'
         ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
         : countriesData.filter(c => c.volumen > 0);
-    
+
     if (tourCountries.length === 0) return;
 
     const runTour = () => {
@@ -340,8 +398,9 @@ export function GlobeComponent({
             tourTimeoutRef.current = setTimeout(runTour, 2000);
             return;
         }
-        
+
         const countryData = tourCountries[currentIndexRef.current % tourCountries.length];
+        if (!countryData) return;
 
         // Marca el destino para que el efecto de sync mueva la cámara una sola vez.
         tourMoveRef.current = countryData.id;
@@ -357,7 +416,29 @@ export function GlobeComponent({
         }, 7000);
     };
 
-    tourTimeoutRef.current = setTimeout(runTour, 1000);
+    if (startedByUser) {
+        // Reanudación manual: llevar la cámara al país activo DE INMEDIATO (sin
+        // ningún retardo) y, desde ahí, continuar el tour tras el intervalo normal.
+        const activeId = selectedCountryId || activeTourCountryId;
+        let idx = activeId ? tourCountries.findIndex(c => c.id === activeId) : -1;
+        if (idx === -1) idx = currentIndexRef.current % tourCountries.length;
+        currentIndexRef.current = idx;
+        const cd = tourCountries[idx];
+        if (cd) {
+            tourMoveRef.current = cd.id;
+            setActiveTourCountryId(cd.id);
+            onSelect(cd.id);
+            // Re-centrado explícito e inmediato (aunque el país ya esté seleccionado,
+            // en cuyo caso onSelect no movería la cámara por sí solo).
+            flyTo(cd.lat, cd.lng, 800);
+        }
+        tourTimeoutRef.current = setTimeout(() => {
+            if (isTourActive) { currentIndexRef.current++; runTour(); }
+        }, 7000);
+    } else {
+        // Reejecución por hover/datos: retardo suave, sin re-centrar.
+        tourTimeoutRef.current = setTimeout(runTour, 1000);
+    }
 
     return () => {
         if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
@@ -428,16 +509,6 @@ export function GlobeComponent({
         </div>
     `;
   }, [countriesData, globeMarkers, mode, showFlag, unitLabel]);
-
-  const htmlElements = useMemo(() => {
-    const elements = [{ lat: 4.5, lng: -74.3, type: 'hq' }];
-    if (activeTourCountryId && !hoveredCountry) {
-        // If witnesses mode, ensure the element has the necessary mission data
-        const c = countriesData.find(c => c.id === activeTourCountryId);
-        if (c) elements.push({ ...c, type: 'tooltip' } as any);
-    }
-    return elements;
-  }, [activeTourCountryId, hoveredCountry, countriesData]);
 
   // --- Arcos de flujo: cada país conversa "hacia" Colombia (HQ) ---
   // El grosor y la velocidad del trazo dependen del volumen; el color, del
@@ -519,6 +590,147 @@ export function GlobeComponent({
     []
   );
 
+  // --- Atmósfera reactiva al sentimiento global ---
+  // El halo del planeta tiñe a verde (conversación positiva), rojo (negativa)
+  // o azul (equilibrada/neutra), ponderado por volumen de menciones.
+  const atmosphereColorDynamic = useMemo(() => {
+    if (mode === "witnesses" || plainGlobe) return "#4aa3ff";
+    let pos = 0, neg = 0, tot = 0;
+    countriesData.forEach((c) => {
+      const v = volumeOf(c);
+      if (v <= 0) return;
+      const sp = c.sentimientoPct || {};
+      pos += (sp.positivo || 0) * v;
+      neg += (sp.negativo || 0) * v;
+      tot += v;
+    });
+    if (tot === 0) return "#4aa3ff";
+    const p = pos / tot, n = neg / tot;
+    if (p - n > 8) return "#3fd6a0";
+    if (n - p > 8) return "#ff5a5a";
+    return "#4aa3ff";
+  }, [countriesData, mode, plainGlobe, volumeOf]);
+
+  // Países activos ordenados por volumen (base para columnas, red y revelado).
+  const rankedActive = useMemo(() => {
+    if (mode === "witnesses" || plainGlobe) return [];
+    return countriesData
+      .filter((c) => c.id !== "CO" && c.lat && c.lng && volumeOf(c) > 0)
+      .sort((a, b) => volumeOf(b) - volumeOf(a));
+  }, [countriesData, mode, plainGlobe, volumeOf]);
+
+  // Revelado animado (build-up): cuando revealCount !== null solo se muestran
+  // los primeros N países más activos. Devuelve null = "mostrar todos".
+  const revealedIds = useMemo(() => {
+    if (revealCount === null) return null;
+    return new Set(rankedActive.slice(0, revealCount).map((c) => c.id));
+  }, [revealCount, rankedActive]);
+
+  // --- Columnas 3D de volumen ("luces de ciudad") ---
+  const columnsData = useMemo(() => {
+    if (!showColumns || rankedActive.length === 0) return [];
+    const maxVol = Math.max(...rankedActive.map(volumeOf), 1);
+    const limit = lowEnd ? 20 : 45;
+    return rankedActive
+      .filter((c) => !revealedIds || revealedIds.has(c.id))
+      .slice(0, limit)
+      .map((c) => {
+        const ratio = volumeOf(c) / maxVol;
+        return {
+          lat: c.lat,
+          lng: c.lng,
+          altitude: 0.08 + ratio * 0.65,
+          radius: 0.28 + ratio * 0.45,
+          color: toRgba(sentimentColors[c.sentimiento] || sentimentColors.neutral || "rgb(243,177,22)", 0.85),
+        };
+      });
+  }, [showColumns, rankedActive, volumeOf, sentimentColors, lowEnd, revealedIds]);
+
+  // --- Red de co-conversación país↔país (mismo hashtag dominante) ---
+  // Conecta en estrella los países que comparten el hashtag más repetido,
+  // hacia el de mayor volumen del grupo. Muestra cómo se contagia el discurso.
+  const networkArcs = useMemo(() => {
+    if (!showNetwork || rankedActive.length === 0) return [];
+    const groups: Record<string, any[]> = {};
+    rankedActive.forEach((c) => {
+      const tag = (c.topHashtags?.[0] || "").toString().toLowerCase().trim();
+      if (!tag) return;
+      (groups[tag] = groups[tag] || []).push(c);
+    });
+    const arcs: any[] = [];
+    Object.values(groups).forEach((members) => {
+      if (members.length < 2) return;
+      const hub = members[0]; // mayor volumen del grupo
+      members.slice(1, lowEnd ? 4 : 8).forEach((m) => {
+        if (revealedIds && !(revealedIds.has(m.id) && revealedIds.has(hub.id))) return;
+        arcs.push({
+          startLat: m.lat,
+          startLng: m.lng,
+          endLat: hub.lat,
+          endLng: hub.lng,
+          color: ["rgba(167, 139, 250, 0.05)", "rgba(167, 139, 250, 0.75)"],
+          stroke: 0.4,
+          animTime: 3200,
+          dashInitialGap: ((m.lat * 11 + m.lng * 5) % 100) / 100,
+        });
+      });
+    });
+    return arcs;
+  }, [showNetwork, rankedActive, lowEnd, revealedIds]);
+
+  // --- Auras de alerta (desinformación / sentimiento negativo) ---
+  const alertRings = useMemo(() => {
+    if (!showAlerts || rankedActive.length === 0) return [];
+    return rankedActive
+      .filter((c) => {
+        const sp = c.sentimientoPct || {};
+        const isNeg = c.sentimiento === "negativo" || (sp.negativo || 0) >= 45;
+        return isNeg && (!revealedIds || revealedIds.has(c.id));
+      })
+      .slice(0, 10)
+      .map((c) => ({
+        lat: c.lat,
+        lng: c.lng,
+        color: "rgb(239, 68, 68)",
+        maxR: 7,
+        speed: 4,
+        period: 900,
+      }));
+  }, [showAlerts, rankedActive, revealedIds]);
+
+  // Capas combinadas que se pasan al globo (respetan el revelado animado).
+  const combinedArcs = useMemo(() => {
+    const base = revealedIds ? arcsData.filter((a: any) => {
+      // arcsData no lleva id; se filtra por coincidencia de coordenada de origen.
+      return rankedActive.some((c) => revealedIds.has(c.id) && c.lat === a.startLat && c.lng === a.startLng);
+    }) : arcsData;
+    return showNetwork ? [...base, ...networkArcs] : base;
+  }, [arcsData, networkArcs, showNetwork, revealedIds, rankedActive]);
+
+  const combinedRings = useMemo(
+    () => (showAlerts ? [...ringsData, ...alertRings] : ringsData),
+    [ringsData, alertRings, showAlerts]
+  );
+
+  const htmlElements = useMemo(() => {
+    const elements: any[] = [HQ_ELEMENT];
+    // Burbujas con el hashtag dominante de cada foco activo.
+    if (showHashtags) {
+      rankedActive
+        .filter((c) => c.topHashtags?.[0] && (!revealedIds || revealedIds.has(c.id)))
+        .slice(0, lowEnd ? 6 : 12)
+        .forEach((c) => elements.push({ lat: c.lat, lng: c.lng, type: 'hashtag', tag: c.topHashtags[0] }));
+    }
+    if (activeTourCountryId && !hoveredCountry) {
+        // If witnesses mode, ensure the element has the necessary mission data
+        const c = countriesData.find(c => c.id === activeTourCountryId);
+        if (c) elements.push({ ...c, type: 'tooltip' } as any);
+    }
+    // Pulso de actividad "en vivo" (efímero, una sola onda a la vez).
+    if (livePing) elements.push({ lat: livePing.lat, lng: livePing.lng, type: 'ping', color: livePing.color, key: livePing.key });
+    return elements;
+  }, [activeTourCountryId, hoveredCountry, countriesData, showHashtags, rankedActive, revealedIds, lowEnd, livePing]);
+
   // --- Accesores memoizados del globo ---
   // Mantienen identidad estable entre renders para que react-globe.gl no
   // reprocese todos los polígonos cada vez que el tour cambia de país.
@@ -526,6 +738,11 @@ export function GlobeComponent({
     const el = document.createElement('div');
     if (d.type === 'hq') {
         el.innerHTML = '<div class="pulse-container"><div class="ring"></div><div class="dot"></div></div>';
+    } else if (d.type === 'hashtag') {
+        const safe = String(d.tag).replace(/[<>]/g, '');
+        el.innerHTML = `<div class="hashtag-bubble">${safe.startsWith('#') ? '' : '#'}${safe.replace(/^#/, '')}</div>`;
+    } else if (d.type === 'ping') {
+        el.innerHTML = `<div class="live-ping" style="--ping-color:${d.color}"></div>`;
     } else {
         el.innerHTML = getTooltipHtml(d.id, true); // true = hide footer during tour
     }
@@ -871,10 +1088,102 @@ export function GlobeComponent({
     };
   }, [lowEnd, plainGlobe]);
 
+  // --- Pulsos de actividad "en vivo" ---
+  // Emite ondas periódicas en países activos, con probabilidad proporcional al
+  // volumen. Da la sensación de conversación en curso sin depender de realtime DB.
+  useEffect(() => {
+    if (!showLivePings || rankedActive.length === 0) { setLivePing(null); return; }
+    let cancelled = false;
+    let timer: NodeJS.Timeout;
+    const tick = () => {
+      if (cancelled) return;
+      const pool = rankedActive.slice(0, lowEnd ? 15 : 30);
+      const weights = pool.map(volumeOf);
+      const total = weights.reduce((a, b) => a + b, 0) || 1;
+      // Selección ponderada determinista (hash sobre el contador, sin estado global).
+      let r = ((((Math.sin(pingSeqRef.current * 99.13) * 99999) % 1) + 1) % 1) * total;
+      let pick = pool[0];
+      for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { pick = pool[i]; break; } }
+      pingSeqRef.current += 1;
+      setLivePing({
+        lat: pick.lat,
+        lng: pick.lng,
+        color: toRgba(sentimentColors[pick.sentimiento] || sentimentColors.neutral || "rgb(243,177,22)", 0.9),
+        key: pingSeqRef.current,
+      });
+      timer = setTimeout(tick, 2000 + (pingSeqRef.current % 5) * 300);
+    };
+    timer = setTimeout(tick, 800);
+    return () => { cancelled = true; clearTimeout(timer); setLivePing(null); };
+  }, [showLivePings, rankedActive, lowEnd, volumeOf, sentimentColors]);
+
+  // --- Revelado animado (build-up por volumen) ---
+  const startReveal = useCallback(() => {
+    if (revealTimerRef.current) clearInterval(revealTimerRef.current);
+    const total = rankedActive.length;
+    if (total === 0) return;
+    setIsTourActive(false);
+    let n = 1;
+    setRevealCount(1);
+    revealTimerRef.current = setInterval(() => {
+      n += 1;
+      if (n >= total) {
+        setRevealCount(null);
+        if (revealTimerRef.current) clearInterval(revealTimerRef.current);
+      } else {
+        setRevealCount(n);
+      }
+    }, 260);
+  }, [rankedActive]);
+
+  useEffect(() => () => { if (revealTimerRef.current) clearInterval(revealTimerRef.current); }, []);
+
+  // --- Narración IA durante el tour ---
+  // Pide a Claude una frase por país enfocado y la muestra como subtítulo.
+  useEffect(() => {
+    if (mode !== "global") { setNarratorText(""); return; }
+    const id = activeTourCountryId || selectedCountryId;
+    if (!id) return;
+    const c = countriesData.find((x) => x.id === id);
+    if (!c) return;
+    if (narratorCacheRef.current[id]) { setNarratorText(narratorCacheRef.current[id]); return; }
+    narratorAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    narratorAbortRef.current = ctrl;
+    setNarratorLoading(true);
+    setNarratorText("");
+    fetch("/api/globe-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        mode: "narration",
+        country: {
+          pais: c.pais, tema: c.tema, volumen: c.volumen, sentimiento: c.sentimiento,
+          sentimientoPct: c.sentimientoPct, plataformas: c.plataformas,
+          topHashtags: c.topHashtags, keywords: c.keywords, pctCambio: c.pctCambio,
+        },
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d?.text) { narratorCacheRef.current[id] = d.text; setNarratorText(d.text); } })
+      .catch(() => {})
+      .finally(() => setNarratorLoading(false));
+    return () => ctrl.abort();
+  }, [activeTourCountryId, selectedCountryId, mode, countriesData]);
+
   return (
-    <div 
+    <div
         ref={containerRef}
-        onPointerDown={() => { userInteracting.current = true; }}
+        onPointerDown={(e) => {
+            userInteracting.current = true;
+            // Si el usuario interactúa directamente con el globo (canvas) —girar,
+            // arrastrar o hacer clic— y el tour está activo, se apaga el autoplay.
+            // Los botones del overlay no son <canvas>, así que no lo desactivan.
+            if (isTourActive && (e.target as HTMLElement)?.tagName === "CANVAS") {
+                setIsTourActive(false);
+            }
+        }}
         onPointerUp={() => { 
             if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
             interactionTimeoutRef.current = setTimeout(() => { userInteracting.current = false; }, 2000);
@@ -920,6 +1229,39 @@ export function GlobeComponent({
         .globe-tooltip .volume { color: #f3b116; font-weight: 800; font-size: 15px; }
         .globe-tooltip .sentiment { color: #2eb88a; font-weight: 800; font-size: 13px; text-transform: capitalize; }
         .globe-tooltip .footer { font-size: 11px; color: #64748b; margin-top: 14px; text-align: center; }
+
+        .hashtag-bubble {
+            transform: translate(-50%, -170%);
+            background: rgba(11, 16, 29, 0.9);
+            color: #7dd3fc;
+            border: 1px solid rgba(125, 211, 252, 0.4);
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            font-family: 'Satoshi', sans-serif;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .live-ping {
+            position: absolute; top: 0; left: 0;
+            width: 12px; height: 12px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: var(--ping-color, #f3b116);
+            box-shadow: 0 0 8px var(--ping-color, #f3b116);
+            pointer-events: none;
+        }
+        .live-ping::after {
+            content: ''; position: absolute; inset: -3px;
+            border-radius: 50%;
+            border: 2px solid var(--ping-color, #f3b116);
+            animation: pingExpand 2s ease-out forwards;
+        }
+        @keyframes pingExpand { 0% { transform: scale(0.4); opacity: 0.9; } 100% { transform: scale(4.5); opacity: 0; } }
       `}</style>
 
       {isFullscreen && (
@@ -949,7 +1291,18 @@ export function GlobeComponent({
 
       {/* Floating Controls */}
       <div className="absolute top-4 right-4 z-[110] flex gap-2">
-        <Button 
+        {mode === 'global' && !plainGlobe && (
+          <Button
+              variant="outline"
+              size="sm"
+              className={`bg-[#0b101d] text-white border-white/20 hover:bg-white/5 ${layersOpen ? 'border-blue-500/50 text-blue-400' : ''}`}
+              onClick={() => setLayersOpen((v) => !v)}
+          >
+              <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
+              Capas
+          </Button>
+        )}
+        <Button
             variant="outline"
             size="sm"
             className="bg-[#0b101d] text-white border-white/20 hover:bg-white/5"
@@ -958,16 +1311,80 @@ export function GlobeComponent({
             <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} className="mr-2" />
             {isFullscreen ? "Salir" : "Pantalla Completa"}
         </Button>
-        <Button 
+        <Button
             variant="outline"
             size="sm"
             className={`bg-[#0b101d] text-white border-white/20 hover:bg-white/5 ${isTourActive ? 'border-blue-500/50 text-blue-400' : ''}`}
-            onClick={() => setIsTourActive(!isTourActive)}
+            onClick={() => {
+                const next = !isTourActive;
+                if (next) {
+                    // El clic sobre el botón disparó el onPointerDown del contenedor
+                    // (marca "usuario interactuando"). Lo reseteamos para que el tour
+                    // arranque YA y no espere el retardo anti-interacción.
+                    userInteracting.current = false;
+                    if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+                }
+                setIsTourActive(next);
+            }}
         >
             <FontAwesomeIcon icon={isTourActive ? faPause : faPlay} className="mr-2" />
             {isTourActive ? "Pausar" : "Giro"}
         </Button>
       </div>
+
+      {/* Panel de Capas */}
+      {layersOpen && mode === 'global' && !plainGlobe && (
+        <div className="absolute top-16 right-4 z-[120] w-64 bg-[#0b101d]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between px-1 pb-2 mb-1 border-b border-white/10">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-300">Capas del globo</span>
+            <button onClick={() => setLayersOpen(false)} className="text-slate-500 hover:text-white">
+              <FontAwesomeIcon icon={faXmark} className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {[
+            { on: showColumns, set: setShowColumns, icon: faChartColumn, label: "Columnas 3D", desc: "Volumen en relieve", color: "text-yellow-400" },
+            { on: showHashtags, set: setShowHashtags, icon: faHashtag, label: "Hashtags", desc: "Burbujas por país", color: "text-sky-400" },
+            { on: showAlerts, set: setShowAlerts, icon: faTriangleExclamation, label: "Alertas", desc: "Sentimiento negativo", color: "text-red-400" },
+            { on: showNetwork, set: setShowNetwork, icon: faShareNodes, label: "Red de discurso", desc: "País ↔ país por hashtag", color: "text-violet-400" },
+            { on: showLivePings, set: setShowLivePings, icon: faBolt, label: "Pulsos en vivo", desc: "Actividad en tiempo real", color: "text-emerald-400" },
+          ].map((row) => (
+            <button
+              key={row.label}
+              onClick={() => row.set((v: boolean) => !v)}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/5 transition-colors text-left"
+            >
+              <FontAwesomeIcon icon={row.icon} className={`w-4 h-4 ${row.on ? row.color : 'text-slate-600'}`} />
+              <span className="flex-1">
+                <span className="block text-xs font-semibold text-white leading-tight">{row.label}</span>
+                <span className="block text-[10px] text-slate-500 leading-tight">{row.desc}</span>
+              </span>
+              <span className={`relative w-9 h-5 rounded-full transition-colors ${row.on ? 'bg-blue-500/80' : 'bg-white/10'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${row.on ? 'left-[18px]' : 'left-0.5'}`} />
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={startReveal}
+            disabled={revealCount !== null}
+            className="w-full mt-2 flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-semibold hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+          >
+            <FontAwesomeIcon icon={faPlay} className="w-3 h-3" />
+            {revealCount !== null ? `Revelando… (${revealCount})` : "Revelar conversación"}
+          </button>
+        </div>
+      )}
+
+      {/* Subtítulo de narración IA (siempre activo en modo global) */}
+      {mode === 'global' && (narratorText || narratorLoading) && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[120] max-w-[80%] px-5 py-3 rounded-2xl bg-[#0b101d]/90 backdrop-blur-md border border-fuchsia-500/30 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="flex items-center gap-3">
+            <FontAwesomeIcon icon={faWandMagicSparkles} className="w-4 h-4 text-fuchsia-400 shrink-0" />
+            <p className="text-sm text-slate-100 leading-snug">
+              {narratorLoading && !narratorText ? <span className="text-slate-400 italic">Analizando conversación…</span> : narratorText}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Popup Details */}
       {isFullscreen && showDetails && selectedData && (
@@ -1078,7 +1495,7 @@ export function GlobeComponent({
       <Globe
         ref={globeEl}
         onGlobeReady={handleGlobeReady}
-        rendererConfig={{ antialias: !lowEnd, powerPreference: lowEnd ? "low-power" : "high-performance" }}
+        rendererConfig={rendererConfig}
         width={isFullscreen ? undefined : undefined}
         height={isFullscreen ? undefined : undefined}
         globeImageUrl="/earth_day.jpg"
@@ -1086,13 +1503,22 @@ export function GlobeComponent({
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
 
         showAtmosphere={true}
-        atmosphereColor="#4aa3ff"
+        atmosphereColor={atmosphereColorDynamic}
         atmosphereAltitude={lowEnd ? 0.22 : 0.28}
 
         htmlElementsData={htmlElements}
         htmlElement={htmlElement}
 
-        arcsData={arcsData}
+        pointsData={columnsData}
+        pointLat={"lat"}
+        pointLng={"lng"}
+        pointAltitude={"altitude"}
+        pointRadius={"radius"}
+        pointColor={"color"}
+        pointResolution={lowEnd ? 6 : 12}
+        pointsTransitionDuration={600}
+
+        arcsData={combinedArcs}
         arcColor={"color"}
         arcStroke={"stroke"}
         arcDashLength={0.4}
@@ -1103,7 +1529,7 @@ export function GlobeComponent({
         arcAltitudeAutoScale={0.45}
         arcCurveResolution={lowEnd ? 32 : 64}
 
-        ringsData={ringsData}
+        ringsData={combinedRings}
         ringColor={ringColorInterpolator}
         ringMaxRadius={"maxR"}
         ringPropagationSpeed={"speed"}
@@ -1115,6 +1541,10 @@ export function GlobeComponent({
         polygonCapColor={polygonCapColor}
         polygonSideColor={polygonSideColorConst}
         polygonStrokeColor={polygonStrokeColorConst}
+        // Recolor instantáneo: sin transición, cambiar de país seleccionado (tour
+        // o clic) NO dispara una animación de 1s sobre los ~177 polígonos a la vez,
+        // que se percibía como un "barrido/reinicio" constante del mapa.
+        polygonsTransitionDuration={0}
 
         onPolygonHover={onPolygonHover}
         onPolygonClick={onPolygonClick}

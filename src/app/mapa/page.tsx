@@ -14,7 +14,7 @@ import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
-import { faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faRotate, faGlobe, faArrowTrendUp, faStar, faSave, faUpload, faPlus, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComponent), {
@@ -34,6 +34,36 @@ const platformConfig: Record<string, { color: string; icon: any; name: string }>
 };
 
 const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformColors, BrandIcon }: any) => {
+    const [aiText, setAiText] = useState("");
+    const [aiLoading, setAiLoading] = useState(false);
+    // El reset del análisis al cambiar de país se logra remontando el componente
+    // con key={country.id} (ver más abajo), sin efectos con setState.
+
+    const runAi = async () => {
+        setAiLoading(true);
+        try {
+            const res = await fetch("/api/globe-summary", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    mode: "summary",
+                    country: {
+                        pais: country.pais, tema: country.tema, volumen: country.volumen,
+                        sentimiento: country.sentimiento, sentimientoPct: country.sentimientoPct,
+                        plataformas: country.plataformas, topHashtags: country.topHashtags,
+                        keywords: country.keywords, pctCambio: country.pctCambio,
+                    },
+                }),
+            });
+            const d = await res.json();
+            setAiText(d.text || d.error || "No se pudo generar el análisis.");
+        } catch {
+            setAiText("Error de red al generar el análisis.");
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
     if (!country) return null;
     return (
         <div key={country.id} className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white animate-in fade-in slide-in-from-right-4 duration-500">
@@ -122,6 +152,25 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
             <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
                 <p className="text-slate-400 mb-1">Resumen</p>
                 {country.resumen}
+            </div>
+
+            <div className="space-y-2">
+                <button
+                    onClick={runAi}
+                    disabled={aiLoading}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500/20 to-violet-500/20 border border-fuchsia-500/30 text-fuchsia-200 text-sm font-semibold hover:from-fuchsia-500/30 hover:to-violet-500/30 transition-colors disabled:opacity-60"
+                >
+                    <FontAwesomeIcon icon={faWandMagicSparkles} className={`w-4 h-4 ${aiLoading ? 'animate-pulse' : ''}`} />
+                    {aiLoading ? "Analizando con IA…" : "Análisis con IA"}
+                </button>
+                {aiText && (
+                    <div className="p-4 rounded-xl bg-fuchsia-500/5 border border-fuchsia-500/20 text-xs text-slate-200 leading-relaxed whitespace-pre-line animate-in fade-in duration-500">
+                        <p className="text-fuchsia-300 mb-1.5 font-semibold flex items-center gap-1.5">
+                            <FontAwesomeIcon icon={faWandMagicSparkles} className="w-3 h-3" /> Análisis IA
+                        </p>
+                        {aiText}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -696,12 +745,13 @@ export default function MapaPage() {
 
         <div className="flex flex-col gap-6 h-full overflow-y-auto">
           {country ? (
-            <CountryDetail 
-                country={country} 
-                selectedPlatform={selectedPlatform} 
-                sentimentColors={sentimentColors} 
-                platformColors={platformColors} 
-                BrandIcon={BrandIcon} 
+            <CountryDetail
+                key={country.id}
+                country={country}
+                selectedPlatform={selectedPlatform}
+                sentimentColors={sentimentColors}
+                platformColors={platformColors}
+                BrandIcon={BrandIcon}
             />
           ) : (
             <Card className="p-6 h-40 flex flex-col items-center justify-center text-center bg-[#0b101d]/50 border border-white/5 text-white">

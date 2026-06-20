@@ -5,17 +5,20 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AuthProvider } from "@/components/auth-provider";
+import { AccessSync } from "@/components/auth/AccessSync";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/login";
+  // Páginas que se muestran sin el shell (sidebar/header).
+  const isBarePage = pathname === "/login" || pathname === "/sin-acceso";
 
-  if (isLoginPage) {
+  if (isBarePage) {
     return <>{children}</>;
   }
 
   return (
     <AuthProvider>
+      <AccessSync />
       <div className="app-aurora" aria-hidden="true" />
       <SidebarProvider className="h-screen overflow-hidden">
         <AppSidebar />

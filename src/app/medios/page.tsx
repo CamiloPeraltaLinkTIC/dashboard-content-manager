@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
+import { canEdit } from "@/lib/auth/rbac";
 import { Card } from "@/components/ui/card";
 import { 
   faNewspaper, 
@@ -223,7 +224,7 @@ export default function MediosPage() {
           <p className="text-slate-400 text-sm">Monitoreo de prensa, radio, TV y medios digitales sobre el proceso electoral.</p>
         </div>
         <div className="flex gap-3">
-            {role === "admin" && (
+            {canEdit(role) && (
                 !isEditing ? (
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
                         <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición

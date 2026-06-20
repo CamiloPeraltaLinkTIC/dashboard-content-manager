@@ -28,6 +28,8 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { ChevronLeft } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faInstagram } from "@fortawesome/free-brands-svg-icons";
+import { useAuth } from "@/components/auth-provider";
+import { screenKeyForPath } from "@/lib/auth/rbac";
 
 const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   Vote,
@@ -68,11 +70,20 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { toggleSidebar } = useSidebar();
+  const { role, screens } = useAuth();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const currentMode: ModeKey = pathname.startsWith("/actores-electorales") ? "actores" : "cne";
   const mode = modes[currentMode];
   const ModeIcon = mode.icon;
+
+  // El superadmin ve todo; el resto solo las pantallas que tiene asignadas.
+  const canSee = (path: string) => {
+    if (role === "superadmin") return true;
+    const key = screenKeyForPath(path);
+    return key ? screens.includes(key) : true;
+  };
+  const visibleItems = mode.navItems.filter((item) => canSee(item.path));
 
   const selectMode = (key: ModeKey) => {
     setSwitcherOpen(false);
@@ -144,7 +155,7 @@ export function AppSidebar() {
           {mode.section}
         </p>
         <nav className="space-y-1">
-          {mode.navItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = icons[item.icon];
             const isActive =
               pathname === item.path ||
@@ -186,6 +197,27 @@ export function AppSidebar() {
             );
           })}
         </nav>
+
+        {role === "superadmin" && (
+          <>
+            <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground mt-5 mb-2 px-2 group-data-[collapsible=icon]:hidden">
+              Administración
+            </p>
+            <nav className="space-y-1">
+              <Link
+                href="/admin/usuarios"
+                className={`sidebar-item flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                  pathname.startsWith("/admin/usuarios")
+                    ? "active bg-[hsl(213_85%_48%/0.15)] text-[hsl(213_85%_48%)] border-l-2 border-[hsl(213_85%_48%)] pl-[calc(0.75rem-2px)]"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                <Users className={`h-4 w-4 shrink-0 ${pathname.startsWith("/admin/usuarios") ? "text-[hsl(213_85%_48%)]" : ""}`} />
+                <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">Usuarios</span>
+              </Link>
+            </nav>
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border/40 px-4 py-3 group-data-[collapsible=icon]:hidden">

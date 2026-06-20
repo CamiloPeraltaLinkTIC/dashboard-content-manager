@@ -6,6 +6,7 @@ import { faRotate, faHeart, faComment, faSave, faPlus, faTrash, faUpload, faLock
 import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAuth } from "@/components/auth-provider";
+import { canEdit } from "@/lib/auth/rbac";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
@@ -195,7 +196,7 @@ export default function SocialPage() {
           <p className="text-slate-400 text-sm">Monitoreo en tiempo real de Instagram, Facebook, X y TikTok.</p>
         </div>
         <div className="flex gap-2">
-            {role === "admin" && (
+            {canEdit(role) && (
                 !isEditing ? (
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="bg-blue-600/10 text-blue-400 border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all">
                         <FontAwesomeIcon icon={faRotate} className="mr-2" /> Modo Edición
