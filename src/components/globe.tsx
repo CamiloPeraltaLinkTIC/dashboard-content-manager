@@ -27,7 +27,7 @@ const platformIcons: Record<string, string> = {
 };
 
 const intensityColors = {
-    muyAlta: "rgba(46, 184, 138, 0.6)",
+    muyAlta: "rgba(13, 110, 68, 0.75)",
     alta: "rgba(102, 214, 150, 0.5)",
     media: "rgba(255, 152, 0, 0.5)",
     baja: "rgba(239, 154, 154, 0.5)",

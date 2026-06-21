@@ -705,7 +705,7 @@ export default function MapaPage() {
               <span className="text-[11px] font-bold uppercase tracking-wider text-red-300">En vivo</span>
             </div>
             <div className="marquee flex-1 py-2">
-              <div className="marquee-track">
+              <div className="marquee-track" style={{ animationDuration: "70s" }}>
                 {[...sortedCountries.slice(0, 14), ...sortedCountries.slice(0, 14)].map((c: any, i: number) => {
                   const vol = selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen;
                   const up = (c.pctCambio || 0) >= 0;

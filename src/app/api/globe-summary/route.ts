@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { NO_TESTIGOS_DIGITALES_RULE, sanitizeAiText } from "@/lib/ai-sanitize";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
       : "Redacta un análisis breve (3 a 5 frases) en español, claro y accionable, sobre la conversación digital acerca del Consejo Nacional Electoral (CNE) de Colombia en este país. Interpreta el sentimiento, el volumen, la tendencia y los temas. No inventes datos que no estén en el contexto. No uses encabezados ni listas.";
 
   const system =
-    "Eres un analista de escucha social del Consejo Nacional Electoral (CNE) de Colombia. Analizas la conversación internacional sobre el CNE. Respondes SIEMPRE en español, con tono institucional y sobrio, basándote únicamente en los datos entregados.";
+    "Eres un analista de escucha social del Consejo Nacional Electoral (CNE) de Colombia. Analizas la conversación internacional sobre el CNE. Respondes SIEMPRE en español, con tono institucional y sobrio, basándote únicamente en los datos entregados. " +
+    NO_TESTIGOS_DIGITALES_RULE;
 
   try {
     const client = new Anthropic();
@@ -90,7 +92,7 @@ export async function POST(req: Request) {
       .join("")
       .trim();
 
-    return Response.json({ text });
+    return Response.json({ text: sanitizeAiText(text) });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido";
     return Response.json({ error: message }, { status: 500 });
