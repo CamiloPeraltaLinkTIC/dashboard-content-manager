@@ -1,5 +1,6 @@
 "use client";
 
+// nota: comentario de prueba
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Globe from "react-globe.gl";
 import * as THREE from "three";
