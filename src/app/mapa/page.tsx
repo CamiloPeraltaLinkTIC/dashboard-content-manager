@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
 import { CountUp } from "@/components/count-up";
 import { SentimentDonut } from "@/components/sentiment-donut";
+import { DecimalInput } from "@/components/decimal-input";
 import { Flag } from "@/components/flag";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -514,10 +515,10 @@ export default function MapaPage() {
     handleCountryChange(id, field, arr);
   };
 
-  const handleSentimentPctChange = (id: string, type: 'positivo' | 'neutral' | 'negativo', value: string) => {
+  const handleSentimentPctChange = (id: string, type: 'positivo' | 'neutral' | 'negativo', value: number) => {
     setCountriesData(prev => prev.map((c: any) => {
         if (c.id !== id) return c;
-        const newPct = { ...(c.sentimientoPct || { positivo: 0, neutral: 0, negativo: 0 }), [type]: parseInt(value) || 0 };
+        const newPct = { ...(c.sentimientoPct || { positivo: 0, neutral: 0, negativo: 0 }), [type]: value };
         return { ...c, sentimientoPct: newPct };
     }));
   };
@@ -967,15 +968,15 @@ export default function MapaPage() {
                                 <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <label className="text-[10px] text-green-400 uppercase tracking-widest block mb-1">Positivo</label>
-                                        <Input type="number" value={c.sentimientoPct?.positivo || 0} onChange={(e) => handleSentimentPctChange(c.id, 'positivo', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                        <DecimalInput value={c.sentimientoPct?.positivo || 0} onChange={(v) => handleSentimentPctChange(c.id, 'positivo', v)} className="bg-[#161d2b] border-white/10 h-10" />
                                     </div>
                                     <div>
                                         <label className="text-[10px] text-yellow-400 uppercase tracking-widest block mb-1">Neutral</label>
-                                        <Input type="number" value={c.sentimientoPct?.neutral || 0} onChange={(e) => handleSentimentPctChange(c.id, 'neutral', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                        <DecimalInput value={c.sentimientoPct?.neutral || 0} onChange={(v) => handleSentimentPctChange(c.id, 'neutral', v)} className="bg-[#161d2b] border-white/10 h-10" />
                                     </div>
                                     <div>
                                         <label className="text-[10px] text-red-400 uppercase tracking-widest block mb-1">Negativo</label>
-                                        <Input type="number" value={c.sentimientoPct?.negativo || 0} onChange={(e) => handleSentimentPctChange(c.id, 'negativo', e.target.value)} className="bg-[#161d2b] border-white/10 h-10" />
+                                        <DecimalInput value={c.sentimientoPct?.negativo || 0} onChange={(v) => handleSentimentPctChange(c.id, 'negativo', v)} className="bg-[#161d2b] border-white/10 h-10" />
                                     </div>
                                 </div>
 

@@ -81,7 +81,7 @@ export function SentimentDonut({
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-2xl font-bold tabular-nums" style={{ color: dominant.color }}>
-            {Math.round((dominant.value / total) * 100)}%
+            {((dominant.value / total) * 100).toFixed(1)}%
           </span>
           <span className="text-[10px] uppercase tracking-wider text-slate-400">{dominant.key}</span>
         </div>
@@ -93,7 +93,7 @@ export function SentimentDonut({
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
             <span className="text-slate-300 w-14">{s.key}</span>
             <span className="font-mono font-semibold tabular-nums" style={{ color: s.color }}>
-              {Math.round((s.value / total) * 100)}%
+              {((s.value / total) * 100).toFixed(1)}%
             </span>
           </div>
         ))}

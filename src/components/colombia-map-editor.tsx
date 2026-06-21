@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/decimal-input";
 import { supabase } from "@/lib/supabase";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSave, faChevronDown, faFileArrowDown, faFileArrowUp } from "@fortawesome/free-solid-svg-icons";
@@ -284,13 +285,13 @@ export function ColombiaMapEditor({ data, onSaved }: { data: any[]; onSaved: () 
 
               <div className="col-span-2 grid grid-cols-3 gap-2">
                 <Field label="% Positivo">
-                  <Input type="number" className={inputCls} value={r.sentimientoPct?.positivo ?? 0} onChange={(e) => updatePct(r.id, "positivo", Number(e.target.value))} />
+                  <DecimalInput className={inputCls} value={r.sentimientoPct?.positivo ?? 0} onChange={(v) => updatePct(r.id, "positivo", v)} />
                 </Field>
                 <Field label="% Neutral">
-                  <Input type="number" className={inputCls} value={r.sentimientoPct?.neutral ?? 0} onChange={(e) => updatePct(r.id, "neutral", Number(e.target.value))} />
+                  <DecimalInput className={inputCls} value={r.sentimientoPct?.neutral ?? 0} onChange={(v) => updatePct(r.id, "neutral", v)} />
                 </Field>
                 <Field label="% Negativo">
-                  <Input type="number" className={inputCls} value={r.sentimientoPct?.negativo ?? 0} onChange={(e) => updatePct(r.id, "negativo", Number(e.target.value))} />
+                  <DecimalInput className={inputCls} value={r.sentimientoPct?.negativo ?? 0} onChange={(v) => updatePct(r.id, "negativo", v)} />
                 </Field>
               </div>
 
