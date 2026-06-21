@@ -84,7 +84,7 @@ function TestigosOverview({
                       setKpis(newK);
                   }} className="h-4 bg-transparent border-none p-0 text-[10px] font-bold uppercase tracking-widest text-slate-500" />
               ) : (
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{kpi.label}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate min-w-0">{kpi.label}</span>
               )}
               {isEditing ? (
                   <Input value={kpi.delta || ''} onChange={e => {
@@ -108,7 +108,7 @@ function TestigosOverview({
                     setKpis(newK);
                 }} className="h-8 text-2xl font-bold text-[#1270e2] bg-white/5 border-white/10" />
             ) : (
-                <div className="font-bold text-2xl text-[#1270e2]">{kpi.value}</div>
+                <div className="font-bold text-xl sm:text-2xl text-[#1270e2] truncate">{kpi.value}</div>
             )}
             <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden mt-1">
               <div className="h-full bg-[#1270e2] rounded-full" style={{ width: `${kpi.progress}%` }}></div>
@@ -165,7 +165,7 @@ function TestigosOverview({
 
           {/* Overlay Detail Panel */}
           {marker && (
-            <div className="absolute right-3 top-10 rounded-xl p-4 text-sm bg-[#0e1320]/95 border border-[#1270e2]/40 min-w-[220px] z-20 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="absolute right-3 top-10 rounded-xl p-4 text-sm bg-[#0e1320]/95 border border-[#1270e2]/40 min-w-[200px] max-w-[calc(100%-1.5rem)] z-20 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-yellow-500">{marker.pais}</span>
                     <button onClick={() => setSelected(null)} className="text-muted-foreground hover:text-white transition-colors">

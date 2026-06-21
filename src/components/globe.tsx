@@ -1306,7 +1306,7 @@ export function GlobeComponent({
       )}
 
       {!hideIntensity && (
-        <div className={`absolute bottom-6 ${isFullscreen ? 'right-6' : 'left-6'} z-[110] bg-[#0b101d]/90 p-4 rounded-xl border border-white/10 text-white text-xs w-48 shadow-2xl`}>
+        <div className={`absolute bottom-3 sm:bottom-6 ${isFullscreen ? 'right-3 sm:right-6' : 'left-3 sm:left-6'} z-[110] bg-[#0b101d]/90 p-3 sm:p-4 rounded-xl border border-white/10 text-white text-[11px] sm:text-xs w-40 sm:w-48 shadow-2xl`}>
             <h4 className="font-bold mb-2 text-slate-300 tracking-tight">Intensidad de conversación</h4>
             <div className="space-y-1.5">
                 <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{background: intensityColors.muyAlta}}></span> Muy alta (&gt;75%)</div>
@@ -1322,7 +1322,7 @@ export function GlobeComponent({
       )}
 
       {/* Floating Controls */}
-      <div className="absolute top-4 right-4 z-[110] flex gap-2">
+      <div className="absolute top-3 right-3 z-[110] flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)]">
         {mode === 'global' && !plainGlobe && (
           <Button
               variant="outline"
@@ -1330,8 +1330,8 @@ export function GlobeComponent({
               className={`bg-[#0b101d] text-white border-white/20 hover:bg-white/5 ${layersOpen ? 'border-blue-500/50 text-blue-400' : ''}`}
               onClick={() => setLayersOpen((v) => !v)}
           >
-              <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
-              Capas
+              <FontAwesomeIcon icon={faLayerGroup} className="sm:mr-2" />
+              <span className="hidden sm:inline">Capas</span>
           </Button>
         )}
         <Button
@@ -1340,8 +1340,8 @@ export function GlobeComponent({
             className="bg-[#0b101d] text-white border-white/20 hover:bg-white/5"
             onClick={toggleFullscreen}
         >
-            <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} className="mr-2" />
-            {isFullscreen ? "Salir" : "Pantalla Completa"}
+            <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} className="sm:mr-2" />
+            <span className="hidden sm:inline">{isFullscreen ? "Salir" : "Pantalla Completa"}</span>
         </Button>
         <Button
             variant="outline"
@@ -1359,8 +1359,8 @@ export function GlobeComponent({
                 setIsTourActive(next);
             }}
         >
-            <FontAwesomeIcon icon={isTourActive ? faPause : faPlay} className="mr-2" />
-            {isTourActive ? "Pausar" : "Giro"}
+            <FontAwesomeIcon icon={isTourActive ? faPause : faPlay} className="sm:mr-2" />
+            <span className="hidden sm:inline">{isTourActive ? "Pausar" : "Giro"}</span>
         </Button>
       </div>
 
@@ -1406,12 +1406,20 @@ export function GlobeComponent({
         </div>
       )}
 
-      {/* Subtítulo de narración IA (siempre activo en modo global) */}
+      {/* Subtítulo de narración IA (siempre activo en modo global).
+          Pantalla completa: a la derecha, centrado vertical y un poco más grande.
+          Ventana normal: centrado abajo (comportamiento normal). */}
       {mode === 'global' && (narratorText || narratorLoading) && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[120] max-w-[80%] px-5 py-3 rounded-2xl bg-[#0b101d]/90 backdrop-blur-md border border-fuchsia-500/30 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div
+          className={`absolute z-[120] rounded-2xl bg-[#0b101d]/90 backdrop-blur-md border border-fuchsia-500/30 shadow-2xl animate-in fade-in duration-500 ${
+            isFullscreen
+              ? 'right-6 top-1/2 -translate-y-1/2 max-w-sm px-6 py-4'
+              : 'bottom-8 left-1/2 -translate-x-1/2 max-w-[80%] px-5 py-3'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <FontAwesomeIcon icon={faWandMagicSparkles} className="w-4 h-4 text-fuchsia-400 shrink-0" />
-            <p className="text-sm text-slate-100 leading-snug">
+            <FontAwesomeIcon icon={faWandMagicSparkles} className={`text-fuchsia-400 shrink-0 ${isFullscreen ? 'w-6 h-6' : 'w-4 h-4'}`} />
+            <p className={`text-slate-100 leading-snug ${isFullscreen ? 'text-lg' : 'text-sm'}`}>
               {narratorLoading && !narratorText ? <span className="text-slate-400 italic">Analizando conversación…</span> : narratorText}
             </p>
           </div>

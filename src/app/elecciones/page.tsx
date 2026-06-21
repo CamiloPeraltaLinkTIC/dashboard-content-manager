@@ -69,7 +69,7 @@ function EleccionesOverview({
                       setKpis(newK);
                   }} className="h-4 bg-transparent border-none p-0 text-[10px] font-bold uppercase tracking-widest text-slate-500" />
               ) : (
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{kpi.label}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate min-w-0">{kpi.label}</span>
               )}
               {isEditing ? (
                   <Input value={kpi.delta || ''} onChange={e => {
@@ -93,7 +93,7 @@ function EleccionesOverview({
                     setKpis(newK);
                 }} className="h-8 text-2xl font-bold text-[#1270e2] bg-white/5 border-white/10" />
             ) : (
-                <div className="font-bold text-2xl text-[#1270e2]">{kpi.value}</div>
+                <div className="font-bold text-xl sm:text-2xl text-[#1270e2] truncate">{kpi.value}</div>
             )}
             <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden mt-1">
               <div className="h-full bg-[#1270e2] rounded-full" style={{ width: `${kpi.progress}%` }}></div>

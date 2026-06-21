@@ -21,22 +21,22 @@ interface KpiItem {
 
 export function KpiCards({ items }: { items: KpiItem[] }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {items.map((kpi, i) => {
         const barColor = kpiColors[i % kpiColors.length];
         return (
           <div key={kpi.label} className="kpi-card relative rounded-lg overflow-hidden">
             <div className="p-4 pb-3 relative z-10">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">
                 {kpi.label}
               </p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-2xl font-bold tabular-nums">
+              <div className="flex items-baseline gap-2 mt-1 min-w-0">
+                <p className="text-xl sm:text-2xl font-bold tabular-nums truncate min-w-0">
                   <CountUp value={kpi.value} />
                 </p>
                 {kpi.delta && (
                   <span
-                    className={`text-xs flex items-center gap-0.5 ${
+                    className={`text-xs flex items-center gap-0.5 shrink-0 ${
                       kpi.trend === "up"
                         ? "trend-up"
                         : kpi.trend === "down"

@@ -695,7 +695,7 @@ export default function MapaPage() {
             <span className="bg-[#1e293b] text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-500/20 uppercase">ACTUALIZADO {timeAgo}</span>
         </div>
         <div>
-          <h1 className="text-4xl font-bold tracking-tight gradient-text text-glow-blue">Conversación Global — CNE Colombia</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight gradient-text text-glow-blue break-words">Conversación Global — CNE Colombia</h1>
           <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias internacionales del Consejo Nacional Electoral de Colombia. Haz clic en un marcador para ver el detalle.</p>
         </div>
 
@@ -726,8 +726,8 @@ export default function MapaPage() {
 
         <KpiCards items={dynamicKpis} />
 
-        <div className="flex gap-4 items-center mt-4">
-            <div className="flex gap-2">
+        <div className="flex flex-wrap gap-4 items-center mt-4">
+            <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${!selectedPlatform ? 'bg-primary/20 border-primary' : 'text-white'}`} onClick={() => setSelectedPlatform(null)}>Todas</Button>
                 {Object.keys(platformConfig).map(plat => (
                     <Button key={plat} variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${selectedPlatform === plat ? 'bg-primary/20 border-primary' : 'text-white'}`} onClick={() => setSelectedPlatform(plat)}><BrandIcon name={plat} className="mr-2"/> {plat}</Button>
@@ -737,14 +737,14 @@ export default function MapaPage() {
         </div>
       </div>
 
-      <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full neon-frame rounded-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-[380px] sm:h-[460px] lg:h-full neon-frame rounded-xl">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
             <Globe className="h-full" onSelect={setSelected} selectedCountryId={selected} selectedPlatform={selectedPlatform} countriesData={countriesData} globeMarkers={globeMarkers} sentimentColors={sentimentColors} platformColors={platformColors} />
           </Suspense>
         </Card>
 
-        <div className="flex flex-col gap-6 h-full overflow-y-auto">
+        <div className="flex flex-col gap-6 lg:h-full lg:overflow-y-auto">
           {country ? (
             <CountryDetail
                 key={country.id}
@@ -865,7 +865,7 @@ export default function MapaPage() {
                         const c = countriesData.find((c: any) => c.id === editingCountryId)!;
                         return (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">ID (ISO 2-letras)</label>
                                         <Input type="text" value={c.id} readOnly className="bg-[#0b101d] border-white/5 h-10 opacity-60" />
@@ -884,7 +884,7 @@ export default function MapaPage() {
                                         />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-4 items-center">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:items-center">
                                     <div>
                                         <label className="text-[10px] text-slate-400 uppercase tracking-widest block mb-1">Latitud</label>
                                         <Input type="number" step="0.0001" value={c.lat ?? 0} onChange={(e) => handleCountryChange(c.id, 'lat', parseFloat(e.target.value))} className="bg-[#161d2b] border-white/10 h-10" />

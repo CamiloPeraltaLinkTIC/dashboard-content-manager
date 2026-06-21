@@ -225,8 +225,8 @@ export default function MapaColombiaPage() {
         </div>
       </div>
 
-      <div className="h-[600px] grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-full neon-frame rounded-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[600px]">
+        <Card className="lg:col-span-2 overflow-hidden bg-[#05080f] border border-white/5 shadow-none h-[380px] sm:h-[460px] lg:h-full neon-frame rounded-xl">
           <Suspense fallback={<div className="h-full flex items-center justify-center">Cargando...</div>}>
             <Globe
               className="h-full"
@@ -251,8 +251,8 @@ export default function MapaColombiaPage() {
           </Suspense>
         </Card>
 
-        <div className="flex flex-col gap-4 h-full min-h-0">
-          <div className="shrink-0 max-h-[58%] overflow-y-auto pr-1">
+        <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+          <div className="shrink-0 lg:max-h-[58%] overflow-y-auto pr-1">
             {selectedDep ? (
               <DepartmentDetail dep={selectedDep} />
             ) : (

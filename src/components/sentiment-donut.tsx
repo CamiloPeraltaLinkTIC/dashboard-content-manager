@@ -19,7 +19,7 @@ export function SentimentDonut({
   neutral,
   negativo,
   colors,
-  size = 130,
+  size = 150,
 }: SentimentDonutProps) {
   const total = positivo + neutral + negativo || 1;
   const segments = [
@@ -80,10 +80,10 @@ export function SentimentDonut({
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold tabular-nums" style={{ color: dominant.color }}>
+          <span className="text-xl font-bold tabular-nums whitespace-nowrap leading-none" style={{ color: dominant.color }}>
             {((dominant.value / total) * 100).toFixed(1)}%
           </span>
-          <span className="text-[10px] uppercase tracking-wider text-slate-400">{dominant.key}</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 mt-0.5">{dominant.key}</span>
         </div>
       </div>
 
