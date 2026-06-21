@@ -245,7 +245,7 @@ export default function MapaColombiaPage() {
               tourAltitude={0.6}
               showFlag={false}
               unitLabel="menciones"
-              initialTourActive={false}
+              initialTourActive={true}
               plainGlobe
             />
           </Suspense>

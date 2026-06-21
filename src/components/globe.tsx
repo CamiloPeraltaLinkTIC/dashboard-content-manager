@@ -189,6 +189,10 @@ export function GlobeComponent({
   const [isTourActive, setIsTourActive] = useState(initialTourActive);
   const [activeTourCountryId, setActiveTourCountryId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // El ref del globo se asigna de forma asíncrona (react-globe.gl) y asignar un
+  // ref no reejecuta efectos. Este estado avisa cuando el globo está listo para
+  // que el efecto del tour vuelva a correr y arranque el autoplay al cargar.
+  const [globeReady, setGlobeReady] = useState(false);
   const userInteracting = useRef(false);
   const tourTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentIndexRef = useRef(0);
@@ -202,6 +206,9 @@ export function GlobeComponent({
   // Estado previo del tour: permite distinguir un arranque manual (clic en "Giro")
   // —que debe empezar YA— de una reejecución del efecto por hover/datos.
   const prevTourActiveRef = useRef(initialTourActive);
+  // País seleccionado al montar (p. ej. "CO"): es un encuadre por defecto, NO un
+  // clic del usuario, así que no debe apagar el autoplay al cargar.
+  const initialSelectedRef = useRef(selectedCountryId);
   // Calidad adaptativa: el componente solo se monta en cliente (dynamic ssr:false),
   // así que podemos detectar la gama del dispositivo de forma síncrona.
   const [lowEnd] = useState(detectLowEnd);
@@ -251,6 +258,9 @@ export function GlobeComponent({
         }
       });
   }, [geoUrl, geoObjectKey]);
+
+  useEffect(() => { console.log('[TOUR] isTourActive →', isTourActive); }, [isTourActive]);
+  useEffect(() => { console.log('[TOUR] features →', features.length); }, [features.length]);
 
   // Lee el nombre de la región desde las propiedades del feature (país o departamento)
   const getRegionName = useCallback(
@@ -347,6 +357,13 @@ export function GlobeComponent({
                 tourMoveRef.current = null; // consumir la marca
                 setActiveTourCountryId(selectedCountryId);
                 flyTo(countryData.lat, countryData.lng, 2600); // transición larga y suave del tour
+            } else if (selectedCountryId === initialSelectedRef.current) {
+                // Encuadre del país inicial por defecto (p. ej. "CO"): NO es un clic
+                // del usuario, así que solo ubica la cámara y NO apaga el autoplay.
+                // Condición estable (no muta refs) → sobrevive al doble-render de
+                // StrictMode en desarrollo, que antes apagaba el tour al cargar.
+                setActiveTourCountryId(selectedCountryId);
+                flyTo(countryData.lat, countryData.lng, 1400);
             } else if (selectedCountryId !== activeTourCountryId) {
                 // Selección manual real (ranking, clic): se detiene el tour.
                 // Cancelar YA el temporizador pendiente del tour evita el "minisalto":
@@ -354,6 +371,7 @@ export function GlobeComponent({
                 // otro país compitiendo con la animación del clic manual.
                 if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
                 tourMoveRef.current = null;
+                console.log('[TOUR] DISABLE por selección manual', { selectedCountryId, activeTourCountryId, initial: initialSelectedRef.current });
                 setIsTourActive(false);
                 setActiveTourCountryId(selectedCountryId);
                 const tourCountries = mode === 'witnesses'
@@ -372,7 +390,9 @@ export function GlobeComponent({
 
   // Country-to-Country Tour Logic
   useEffect(() => {
-    if (!isTourActive || !globeEl.current || features.length === 0) {
+    console.log(`[TOUR] effect isTourActive=${isTourActive} globeReady=${globeReady} hasGlobe=${!!globeEl.current} features=${features.length} countries=${countriesData.length} mode=${mode}`);
+    if (!isTourActive || !globeReady || !globeEl.current || features.length === 0) {
+        console.log(`[TOUR] gate-bail isTourActive=${isTourActive} globeReady=${globeReady} hasGlobe=${!!globeEl.current} features=${features.length}`);
         if (globeEl.current) globeEl.current.controls().autoRotate = false;
         if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
         prevTourActiveRef.current = false;
@@ -388,16 +408,19 @@ export function GlobeComponent({
         ? countriesData.filter(c => getMissionData(c.pais, globeMarkers))
         : countriesData.filter(c => c.volumen > 0);
 
-    if (tourCountries.length === 0) return;
+    console.log('[TOUR] tourCountries', tourCountries.length, 'startedByUser', startedByUser);
+    if (tourCountries.length === 0) { console.log('[TOUR] no tourCountries → return'); return; }
 
     const runTour = () => {
-        if (!isTourActive) return;
+        if (!isTourActive) { console.log('[TOUR] runTour: tour inactivo'); return; }
 
         // If user is interacting, hovering, or the tab is hidden, wait and retry
         if (hoveredCountry || userInteracting.current || document.hidden) {
+            console.log('[TOUR] runTour: aplazado', { hovered: !!hoveredCountry, interacting: userInteracting.current, hidden: document.hidden });
             tourTimeoutRef.current = setTimeout(runTour, 2000);
             return;
         }
+        console.log('[TOUR] runTour: avanzando a idx', currentIndexRef.current % tourCountries.length);
 
         const countryData = tourCountries[currentIndexRef.current % tourCountries.length];
         if (!countryData) return;
@@ -424,6 +447,7 @@ export function GlobeComponent({
         if (idx === -1) idx = currentIndexRef.current % tourCountries.length;
         currentIndexRef.current = idx;
         const cd = tourCountries[idx];
+        console.log('[TOUR] startedByUser → arranque inmediato', { activeId, idx, cd: cd?.id });
         if (cd) {
             tourMoveRef.current = cd.id;
             setActiveTourCountryId(cd.id);
@@ -443,7 +467,7 @@ export function GlobeComponent({
     return () => {
         if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current);
     };
-  }, [isTourActive, onSelect, features, hoveredCountry, countriesData, globeMarkers, mode]);
+  }, [isTourActive, globeReady, onSelect, features, hoveredCountry, countriesData, globeMarkers, mode]);
 
   // Helper to generate tooltip HTML content
   const getTooltipHtml = useCallback((countryId: string, isTour: boolean = false) => {
@@ -850,19 +874,25 @@ export function GlobeComponent({
     if (initialPov && globeEl.current) {
       globeEl.current.pointOfView(initialPov, 0);
     }
+    // No marcamos globeReady aquí: react-globe.gl puede invocar este callback en
+    // una fase donde actualizar estado dispara un warning. Lo hace el efecto de
+    // sondeo (red de seguridad), que corre ya montado.
   }, [initialPov]);
 
-  // Red de seguridad: asegura el encuadre inicial (zoom sobre Colombia) aunque
-  // onGlobeReady no llegue a tiempo. Se aplica una sola vez y se detiene.
+  // Red de seguridad: detecta que el globo está listo (aunque onGlobeReady no
+  // llegue) para aplicar el encuadre inicial y, sobre todo, marcar globeReady
+  // y que arranque el autoplay. Sondea poco tiempo y se detiene.
   useEffect(() => {
-    if (!initialPov) return;
     let tries = 0;
     const id = setInterval(() => {
       tries++;
       if (globeEl.current?.pointOfView) {
-        globeEl.current.pointOfView(initialPov, 0);
+        if (initialPov) globeEl.current.pointOfView(initialPov, 0);
+        console.log('[TOUR] globeReady=true (tras', tries, 'intentos)');
+        setGlobeReady(true);
         clearInterval(id);
-      } else if (tries > 20) {
+      } else if (tries > 30) {
+        console.log('[TOUR] globeReady NUNCA: globeEl no expuso pointOfView');
         clearInterval(id);
       }
     }, 100);
@@ -1181,6 +1211,7 @@ export function GlobeComponent({
             // arrastrar o hacer clic— y el tour está activo, se apaga el autoplay.
             // Los botones del overlay no son <canvas>, así que no lo desactivan.
             if (isTourActive && (e.target as HTMLElement)?.tagName === "CANVAS") {
+                console.log('[TOUR] DISABLE por pointerdown en canvas');
                 setIsTourActive(false);
             }
         }}
