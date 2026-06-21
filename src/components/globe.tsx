@@ -437,7 +437,7 @@ export function GlobeComponent({
                 currentIndexRef.current++;
                 runTour();
             }
-        }, 7000);
+        }, 15000);
     };
 
     if (startedByUser) {
@@ -459,7 +459,7 @@ export function GlobeComponent({
         }
         tourTimeoutRef.current = setTimeout(() => {
             if (isTourActive) { currentIndexRef.current++; runTour(); }
-        }, 7000);
+        }, 12000);
     } else {
         // Reejecución por hover/datos: retardo suave, sin re-centrar.
         tourTimeoutRef.current = setTimeout(runTour, 1000);
