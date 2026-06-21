@@ -158,8 +158,7 @@ export function AppSidebar() {
           {visibleItems.map((item) => {
             const Icon = icons[item.icon];
             const isActive =
-              pathname === item.path ||
-              (pathname === "/" && item.path === "/elecciones");
+              pathname === item.path || pathname.startsWith(item.path + "/");
             return (
               <Link
                 key={item.path}
