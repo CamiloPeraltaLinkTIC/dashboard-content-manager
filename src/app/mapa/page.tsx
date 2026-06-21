@@ -84,15 +84,15 @@ const CountryDetail = ({ country, selectedPlatform, sentimentColors, platformCol
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#161d2b] p-4 rounded-xl">
-                    <p className="text-2xl font-bold text-yellow-500 tabular-nums"><CountUp value={country.volumen} /></p>
-                    <p className="text-xs text-slate-400">menciones hoy</p>
-                    <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {country.pctCambio}%</p>
+                <div className="bg-[#161d2b] p-4 rounded-xl min-w-0 overflow-hidden">
+                    <p className="text-xl font-bold text-yellow-500 tabular-nums truncate"><CountUp value={country.volumen} /></p>
+                    <p className="text-xs text-slate-400 truncate">menciones hoy</p>
+                    <p className="text-xs text-green-500 flex items-center gap-1 mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 shrink-0"/> <span className="truncate">{country.pctCambio}%</span></p>
                 </div>
-                <div className="bg-[#161d2b] p-4 rounded-xl">
-                    <p className="text-lg font-bold text-green-500 flex items-center">↑ Positivo <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1 fill-green-500"/></p>
-                    <p className="text-xs text-slate-400">Sentimiento</p>
-                    <p className="text-xs text-blue-400 mt-1 flex items-center">{selectedPlatform || 'TikTok'} <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1"/></p>
+                <div className="bg-[#161d2b] p-4 rounded-xl min-w-0 overflow-hidden">
+                    <p className="text-base font-bold text-green-500 flex items-center gap-1"><span className="truncate">↑ Positivo</span> <FontAwesomeIcon icon={faStar} className="w-3 h-3 shrink-0 fill-green-500"/></p>
+                    <p className="text-xs text-slate-400 truncate">Sentimiento</p>
+                    <p className="text-xs text-blue-400 mt-1 flex items-center gap-1"><span className="truncate">{selectedPlatform || 'TikTok'}</span> <FontAwesomeIcon icon={faStar} className="w-3 h-3 shrink-0"/></p>
                 </div>
             </div>
 
@@ -793,19 +793,19 @@ export default function MapaPage() {
                     onClick={() => setSelected(c.id)}
                     className="p-4 bg-[#0b101d] border border-white/5 rounded-2xl text-left hover:border-primary/50 transition-all"
                 >
-                    <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-sm flex items-center gap-2">
-                            <Flag code={c.id} className="h-3.5 w-auto rounded-[2px]" />
-                            {c.pais}
+                    <div className="flex justify-between items-center gap-2 mb-1">
+                        <h4 className="font-bold text-sm flex items-center gap-2 min-w-0">
+                            <Flag code={c.id} className="h-3.5 w-auto rounded-[2px] shrink-0" />
+                            <span className="truncate">{c.pais}</span>
                         </h4>
-                        <span className={`text-xs font-semibold ${c.pctCambio > 0 ? "text-green-500" : "text-red-500"}`}>
+                        <span className={`text-xs font-semibold shrink-0 whitespace-nowrap ${c.pctCambio > 0 ? "text-green-500" : "text-red-500"}`}>
                             {c.pctCambio > 0 ? "↗ +" : "↘ "} {Math.abs(c.pctCambio)}%
                         </span>
                     </div>
                     <p className="text-xs text-slate-400 mb-3 truncate">{c.tema}</p>
-                    <div className="flex justify-between items-center">
-                        <p className="font-bold text-yellow-500 text-sm">{(selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen).toLocaleString()}</p>
-                        <span className={`text-[10px] ${c.sentimiento === 'positivo' ? 'text-green-500' : 'text-slate-400'}`}>↑ {c.sentimiento.charAt(0).toUpperCase() + c.sentimiento.slice(1)}</span>
+                    <div className="flex justify-between items-center gap-2">
+                        <p className="font-bold text-yellow-500 text-sm truncate min-w-0">{(selectedPlatform ? (c.plataformas as any)[selectedPlatform] || 0 : c.volumen).toLocaleString()}</p>
+                        <span className={`text-[10px] shrink-0 whitespace-nowrap ${c.sentimiento === 'positivo' ? 'text-green-500' : 'text-slate-400'}`}>↑ {c.sentimiento.charAt(0).toUpperCase() + c.sentimiento.slice(1)}</span>
                     </div>
                     <div className="w-full h-1 mt-2 rounded-full bg-slate-800">
                         <div 
