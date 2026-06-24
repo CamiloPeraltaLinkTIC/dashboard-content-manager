@@ -10,6 +10,7 @@ import { DecimalInput } from "@/components/decimal-input";
 import { Flag } from "@/components/flag";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { useAuth } from "@/components/auth-provider";
 import { AdminPopup } from "@/components/admin-popup";
 import { Input } from "@/components/ui/input";
@@ -263,13 +264,11 @@ export default function MapaPage() {
   const [lookingUp, setLookingUp] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [timeAgo, setTimeAgo] = useState<string>("AHORA");
+  const [editorOpen, setEditorOpen] = useState(false);
 
-  useEffect(() => {
-    fetchMapData();
-  }, []);
-
-  const fetchMapData = async () => {
-    setLoadingDb(true);
+  // `silent`: refresco en vivo (Realtime) sin mostrar la pantalla de carga.
+  const fetchMapData = async (silent = false) => {
+    if (!silent) setLoadingDb(true);
     const { data: countries } = await supabase.from('content_manager_mapa_countries').select('*');
     const { data: markers } = await supabase.from('content_manager_globe_markers').select('*');
     if (countries) {
@@ -292,6 +291,18 @@ export default function MapaPage() {
     setTimeAgo("AHORA");
     setLoadingDb(false);
   };
+
+  useEffect(() => {
+    fetchMapData();
+  }, []);
+
+  // Actualización automática en vivo: el mapa global se refresca apenas entran
+  // datos nuevos (editor, import de Excel o cualquier otro dispositivo).
+  useRealtimeRefresh(
+    ["content_manager_mapa_countries", "content_manager_globe_markers"],
+    () => fetchMapData(true),
+    { paused: editorOpen }
+  );
 
   useEffect(() => {
     if (!lastFetchTime) return;
@@ -732,7 +743,7 @@ export default function MapaPage() {
                 {Object.keys(platformConfig).map(plat => (
                     <Button key={plat} variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${selectedPlatform === plat ? 'bg-primary/20 border-primary' : 'text-white'}`} onClick={() => setSelectedPlatform(plat)}><BrandIcon name={plat} className="mr-2"/> {plat}</Button>
                 ))}
-                <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white" onClick={fetchMapData}><FontAwesomeIcon icon={faRotate} className="h-4 w-4 mr-2"/> Actualizar</Button>
+                <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white" onClick={() => fetchMapData()}><FontAwesomeIcon icon={faRotate} className="h-4 w-4 mr-2"/> Actualizar</Button>
             </div>
         </div>
       </div>
@@ -818,7 +829,7 @@ export default function MapaPage() {
         </div>
       </div>
       
-      <AdminPopup title="Editor de Mapa Global">
+      <AdminPopup title="Editor de Mapa Global" open={editorOpen} onOpenChange={setEditorOpen}>
         <div className="space-y-6">
             <div className="flex justify-between items-center bg-[#161d2b] p-4 rounded-xl border border-white/5">
                 <div>

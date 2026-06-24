@@ -46,6 +46,7 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
 // Navegación por modo
 const cneNavItems = [
   { path: "/mapa", label: "Mapa Global", icon: "Globe2", badge: "NEW", badgeBg: "hsl(213 60% 18%)", badgeText: "hsl(213 85% 62%)" },
+  { path: "/nacional", label: "Conversación Nacional", icon: "MapPinned", badge: "NEW", badgeBg: "hsl(213 60% 18%)", badgeText: "hsl(213 85% 62%)" },
   { path: "/elecciones", label: "Elecciones Presiden...", icon: "Vote", badge: "HOT", badgeBg: "#e05a33", badgeText: "#fff" },
   { path: "/testigos", label: "Testigos Electorales", icon: "ShieldCheck" },
   { path: "/legitimidad", label: "Legitimidad y Transparencia", icon: "Scale" },

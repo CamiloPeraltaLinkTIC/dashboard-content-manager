@@ -12,7 +12,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 // Importar los iconos de FontAwesome
 import { faXTwitter, faTiktok, faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
-import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar, faLayerGroup, faHashtag, faChartColumn, faTriangleExclamation, faBolt, faShareNodes, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
+import { faRotate, faPlay, faPause, faExpand, faCompress, faXmark, faArrowTrendUp, faStar, faLayerGroup, faHashtag, faChartColumn, faTriangleExclamation, faBolt, faShareNodes, faWandMagicSparkles, faRoute } from "@fortawesome/free-solid-svg-icons";
 
 // Función para convertir un icono de FA a string SVG
 const faToSvg = (faIcon: any, color: string = "white") => {
@@ -74,6 +74,35 @@ const detectLowEnd = () => {
 
 const prefersReducedMotion = () =>
     typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+
+// Tamaño máximo de textura que soporta la GPU (límite de WebGL). Sirve para no
+// pedir una textura de la Tierra más grande de la que la tarjeta puede mapear
+// (de lo contrario se ve negra o falla). La mayoría soporta >= 4096; las de gama
+// alta, 8192/16384.
+const detectMaxTextureSize = () => {
+    if (typeof document === "undefined") return 4096;
+    try {
+        const c = document.createElement("canvas");
+        const gl = (c.getContext("webgl") || c.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+        if (!gl) return 4096;
+        const max = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+        (gl.getExtension("WEBGL_lose_context") as any)?.loseContext?.();
+        return max;
+    } catch {
+        return 4096;
+    }
+};
+
+// Elige la textura de día de la Tierra con la mayor resolución que el dispositivo
+// puede aprovechar: 8K en GPUs potentes, 4K en la mayoría, 2K en gama baja. Antes
+// se forzaba 2K para todos, por eso el globo se veía borroso.
+const pickEarthDayTexture = (lowEnd: boolean) => {
+    const max = detectMaxTextureSize();
+    if (lowEnd) return max >= 4096 ? "/earth_day_4k.jpg" : "/earth_day.jpg";
+    if (max >= 8192) return "/earth_day_8k.jpg";
+    if (max >= 4096) return "/earth_day_4k.jpg";
+    return "/earth_day.jpg";
+};
 
 const nameMapping: Record<string, string> = {
   "United States of America": "Estados Unidos",
@@ -213,9 +242,14 @@ export function GlobeComponent({
   // Calidad adaptativa: el componente solo se monta en cliente (dynamic ssr:false),
   // así que podemos detectar la gama del dispositivo de forma síncrona.
   const [lowEnd] = useState(detectLowEnd);
+  // Textura de la Tierra adaptada a la GPU (calidad alta donde se pueda).
+  const [earthTextureUrl] = useState(() => pickEarthDayTexture(detectLowEnd()));
 
   // --- Capas visuales activables (panel "Capas") ---
   const [layersOpen, setLayersOpen] = useState(false);
+  // Líneas de conversación hacia Colombia (arcos al HQ). Activas por defecto;
+  // se pueden desactivar desde el panel "Capas" para un globo más limpio.
+  const [showArcs, setShowArcs] = useState(true);
   const [showColumns, setShowColumns] = useState(false);   // columnas 3D de volumen
   const [showHashtags, setShowHashtags] = useState(false); // burbujas de hashtag dominante
   const [showAlerts, setShowAlerts] = useState(false);     // aura roja en sentimiento negativo
@@ -725,12 +759,14 @@ export function GlobeComponent({
 
   // Capas combinadas que se pasan al globo (respetan el revelado animado).
   const combinedArcs = useMemo(() => {
-    const base = revealedIds ? arcsData.filter((a: any) => {
+    // Si el usuario desactivó las líneas hacia Colombia, no se dibujan los arcos
+    // base (la red de discurso país↔país sigue siendo su propia capa).
+    const base = !showArcs ? [] : (revealedIds ? arcsData.filter((a: any) => {
       // arcsData no lleva id; se filtra por coincidencia de coordenada de origen.
       return rankedActive.some((c) => revealedIds.has(c.id) && c.lat === a.startLat && c.lng === a.startLng);
-    }) : arcsData;
+    }) : arcsData);
     return showNetwork ? [...base, ...networkArcs] : base;
-  }, [arcsData, networkArcs, showNetwork, revealedIds, rankedActive]);
+  }, [arcsData, networkArcs, showNetwork, revealedIds, rankedActive, showArcs]);
 
   const combinedRings = useMemo(
     () => (showAlerts ? [...ringsData, ...alertRings] : ringsData),
@@ -1374,6 +1410,7 @@ export function GlobeComponent({
             </button>
           </div>
           {[
+            { on: showArcs, set: setShowArcs, icon: faRoute, label: "Líneas a Colombia", desc: "Flujo de conversación al HQ", color: "text-amber-400" },
             { on: showColumns, set: setShowColumns, icon: faChartColumn, label: "Columnas 3D", desc: "Volumen en relieve", color: "text-yellow-400" },
             { on: showHashtags, set: setShowHashtags, icon: faHashtag, label: "Hashtags", desc: "Burbujas por país", color: "text-sky-400" },
             { on: showAlerts, set: setShowAlerts, icon: faTriangleExclamation, label: "Alertas", desc: "Sentimiento negativo", color: "text-red-400" },
@@ -1538,7 +1575,7 @@ export function GlobeComponent({
         rendererConfig={rendererConfig}
         width={isFullscreen ? undefined : undefined}
         height={isFullscreen ? undefined : undefined}
-        globeImageUrl="/earth_day.jpg"
+        globeImageUrl={earthTextureUrl}
         bumpImageUrl="/earth_normal.jpg"
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
 

@@ -32,6 +32,7 @@ export interface ScreenDef {
 /** Catálogo de todas las pantallas gateables de este tablero. */
 const SCREENS: ScreenDef[] = [
   { key: "cne-tab:mapa", path: "/mapa", title: "Mapa Global", group: "Narrativa" },
+  { key: "cne-tab:nacional", path: "/nacional", title: "Conversación Nacional", group: "Narrativa" },
   { key: "cne-tab:elecciones", path: "/elecciones", title: "Elecciones Presidenciales", group: "Narrativa" },
   { key: "cne-tab:testigos", path: "/testigos", title: "Testigos Electorales", group: "Narrativa" },
   { key: "cne-tab:legitimidad", path: "/legitimidad", title: "Legitimidad y Transparencia", group: "Narrativa" },

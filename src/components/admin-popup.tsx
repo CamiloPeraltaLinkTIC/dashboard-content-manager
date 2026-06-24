@@ -8,13 +8,13 @@ import { faGear } from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "./auth-provider";
 import { canEdit } from "@/lib/auth/rbac";
 
-export function AdminPopup({ children, title = "Panel de Administración", hideTrigger = false }: { children: React.ReactNode, title?: string, hideTrigger?: boolean }) {
+export function AdminPopup({ children, title = "Panel de Administración", hideTrigger = false, open, onOpenChange }: { children: React.ReactNode, title?: string, hideTrigger?: boolean, open?: boolean, onOpenChange?: (open: boolean) => void }) {
   const { role } = useAuth();
 
   if (!canEdit(role)) return null;
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       {!hideTrigger && (
         <SheetTrigger className="fixed bottom-6 right-6 z-50 bg-[#c77dff] hover:bg-[#b05eed] text-white border-0 shadow-lg shadow-purple-500/20 rounded-full w-12 h-12 p-0 flex items-center justify-center">
           <FontAwesomeIcon icon={faGear} className="w-5 h-5" />
