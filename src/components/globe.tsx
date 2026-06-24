@@ -273,6 +273,38 @@ export function GlobeComponent({
     countriesData.find(c => c.id === selectedCountryId),
   [selectedCountryId, countriesData]);
 
+  // Shared article pool per country — ensures tooltip and fullscreen panel show the same articles in the same order
+  const artPoolCache = useRef<Record<string, any[]>>({});
+
+  const getOrBuildPool = useCallback((countryId: string, arts: any[], max = 3): any[] => {
+    if (!artPoolCache.current[countryId]) {
+      artPoolCache.current[countryId] = [...arts].sort(() => Math.random() - 0.5).slice(0, max);
+    }
+    return artPoolCache.current[countryId];
+  }, []);
+
+  // Clear cache when country data changes so pool refreshes on next hover
+  useEffect(() => { artPoolCache.current = {}; }, [countriesData]);
+
+  // Carousel sync: cycle fullscreen panel at the same 5 s rate as tooltip CSS animation
+  const [carouselIdx, setCarouselIdx] = useState(0);
+  const [carouselPool, setCarouselPool] = useState<any[]>([]);
+
+  useEffect(() => {
+    const arts: any[] = selectedData?.articulos || [];
+    if (arts.length === 0) { setCarouselPool([]); setCarouselIdx(0); return; }
+    const pool = selectedData?.id
+      ? getOrBuildPool(selectedData.id, arts)
+      : [...arts].sort(() => Math.random() - 0.5).slice(0, 3);
+    setCarouselPool(pool);
+    setCarouselIdx(0);
+    if (pool.length <= 1) return;
+    const id = setInterval(() => setCarouselIdx(i => (i + 1) % pool.length), 5000);
+    return () => clearInterval(id);
+  }, [selectedData, getOrBuildPool]);
+
+  const activeArt = carouselPool[carouselIdx] ?? null;
+
   // Config del renderer: referencia ESTABLE. Un objeto inline en el JSX cambia de
   // identidad en cada render y react-globe.gl reprocesa props estáticas innecesariamente.
   const rendererConfig = useMemo(
@@ -504,15 +536,34 @@ export function GlobeComponent({
     };
   }, [isTourActive, globeReady, onSelect, features, hoveredCountry, countriesData, globeMarkers, mode]);
 
+  // Build carousel article HTML — articles fade in/out every 5 s via pure CSS
+  const buildArticlesHtml = (arts: any[], toneColorMap: Record<string, string>, max = 3, countryId?: string): string => {
+    if (!arts || arts.length === 0) return '';
+    const pool = countryId ? getOrBuildPool(countryId, arts, max) : [...arts].sort(() => Math.random() - 0.5).slice(0, max);
+    const n = pool.length;
+    const anims = ['a', 'b', 'c'];
+    const artHtml = pool.map((a, i) => {
+      const tColor = toneColorMap[a.tone] || '#64748b';
+      const animAttr = n > 1 ? ` style="animation:tt-show-${n}-${anims[i]} ${n * 5}s infinite;"` : '';
+      return `<div class="tt-art"${animAttr}>
+          <div class="tt-meta">
+            ${a.tone ? `<span class="tt-badge" style="color:${tColor};border-color:${tColor}40;background:${tColor}18">${a.tone}</span>` : ''}
+            ${a.media ? `<span class="tt-media">${a.media}</span>` : ''}
+          </div>
+          <p class="tt-title">${a.title || ''}</p>
+          ${a.summary ? `<p class="tt-summary">${a.summary}</p>` : ''}
+        </div>`;
+    }).join('');
+    return n === 1
+      ? `<div class="tt-single">${artHtml}</div>`
+      : `<div class="tt-carousel">${artHtml}</div>`;
+  };
+
   // Helper to generate tooltip HTML content
   const getTooltipHtml = useCallback((countryId: string, isTour: boolean = false) => {
     const countryData = countriesData.find(c => c.id === countryId);
     if (!countryData && mode === 'global') return '';
 
-    // Data for Global mode
-    const dominantPlat = countryData ? Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X") : "X";
-    const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-    
     // Data for Witnesses mode
     const mission = countryData ? getMissionData(countryData.pais, globeMarkers) : null;
     
@@ -538,12 +589,24 @@ export function GlobeComponent({
         }
     } else {
         if (countryData) {
+            const toneColorMap: Record<string, string> = { Positivo: "#2eb88a", Negativo: "#df3a3a", Neutro: "#f3b116" };
+            const sentMap: Record<string, string> = { positivo: "#2eb88a", negativo: "#df3a3a", neutral: "#f3b116" };
+            const allArts: any[] = countryData.articulos || [];
+            const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
+            const displayCount = selectedPlatform
+                ? ((countryData.tonos || countryData.plataformas || {})[selectedPlatform] || 0)
+                : (countryData.totalDept ?? countryData.volumen);
+            const sentColor = selectedPlatform
+                ? (toneColorMap[selectedPlatform] || "#64748b")
+                : (sentMap[countryData.sentimiento] || "#64748b");
+            const sentLabel = selectedPlatform || (countryData.sentimiento
+                ? countryData.sentimiento.charAt(0).toUpperCase() + countryData.sentimiento.slice(1)
+                : "Sin datos");
             contentHtml = `
-                <div class="platform">${iconSvg} ${dominantPlat} dominante</div>
-                <div class="theme">${countryData.tema}</div>
+                ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryId)}
                 <div class="stats">
-                    <span class="volume">${Number(countryData.volumen).toLocaleString()} ${unitLabel}</span>
-                    <span class="sentiment">Positivo</span>
+                    <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                    <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
                 </div>
             `;
         }
@@ -567,7 +630,7 @@ export function GlobeComponent({
             ${!isTour ? '<div class="footer">Clic para ver detalle completo</div>' : ''}
         </div>
     `;
-  }, [countriesData, globeMarkers, mode, showFlag, unitLabel]);
+  }, [countriesData, globeMarkers, mode, showFlag, unitLabel, selectedPlatform]);
 
   // --- Arcos de flujo: cada país conversa "hacia" Colombia (HQ) ---
   // El grosor y la velocidad del trazo dependen del volumen; el color, del
@@ -840,17 +903,24 @@ export function GlobeComponent({
         }
     } else {
         if (countryData) {
-            const dominantPlat = Object.keys(countryData.plataformas || {}).reduce((a, b) => countryData.plataformas[a] > countryData.plataformas[b] ? a : b, "X");
-            const iconSvg = platformIcons[dominantPlat.toLowerCase()] || "";
-
+            const toneColorMap: Record<string, string> = { Positivo: "#2eb88a", Negativo: "#df3a3a", Neutro: "#f3b116" };
+            const sentMap: Record<string, string> = { positivo: "#2eb88a", negativo: "#df3a3a", neutral: "#f3b116" };
+            const allArts: any[] = countryData.articulos || [];
+            const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
+            const displayCount = selectedPlatform
+                ? ((countryData.tonos || countryData.plataformas || {})[selectedPlatform] || 0)
+                : (countryData.totalDept ?? countryData.volumen);
+            const sentColor = selectedPlatform
+                ? (toneColorMap[selectedPlatform] || "#64748b")
+                : (sentMap[countryData.sentimiento] || "#64748b");
+            const sentLabel = selectedPlatform || (countryData.sentimiento
+                ? countryData.sentimiento.charAt(0).toUpperCase() + countryData.sentimiento.slice(1)
+                : "Sin datos");
             content = `
-                <div class="platform" style="font-size: 11px; color: #94a3b8; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
-                    ${iconSvg} ${dominantPlat} dominante
-                </div>
-                <div class="theme">${countryData.tema}</div>
+                ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryData.id)}
                 <div class="stats">
-                    <span class="volume">${Number(countryData.volumen).toLocaleString()} ${unitLabel}</span>
-                    <span class="sentiment">Positivo</span>
+                    <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                    <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
                 </div>
             `;
         } else {
@@ -876,7 +946,7 @@ export function GlobeComponent({
             <div class="footer">Clic para ver detalle completo</div>
         </div>
     `;
-  }, [countriesData, globeMarkers, mode, getRegionName, showFlag, unitLabel]);
+  }, [countriesData, globeMarkers, mode, getRegionName, showFlag, unitLabel, selectedPlatform]);
 
   const polygonCapColor = useCallback((d: any) => {
     const countryData = getCountryData(getRegionName(d.properties), countriesData);
@@ -1272,12 +1342,29 @@ export function GlobeComponent({
             border-radius: 12px;
             border: 1px solid rgba(18, 112, 226, 0.4);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-            min-width: 250px;
+            min-width: 300px;
+            max-width: 340px;
             font-family: 'Satoshi', sans-serif;
             pointer-events: none;
             backdrop-filter: blur(8px);
             z-index: 1000;
         }
+        .globe-tooltip .tt-single { margin: 8px 0; }
+        .globe-tooltip .tt-carousel { position: relative; min-height: 76px; margin: 8px 0; overflow: hidden; }
+        .globe-tooltip .tt-carousel .tt-art { position: absolute; top: 0; left: 0; width: 100%; opacity: 0; }
+        .globe-tooltip .tt-art { padding-bottom: 2px; }
+        .globe-tooltip .tt-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
+        .globe-tooltip .tt-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 5px; border: 1px solid; display: inline-block; }
+        .globe-tooltip .tt-media { font-size: 10px; font-weight: 600; color: #7dd3fc; background: rgba(125,211,252,0.1); border: 1px solid rgba(125,211,252,0.2); padding: 2px 8px; border-radius: 5px; display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .globe-tooltip .tt-title { font-size: 12px; font-weight: 600; color: #e2e8f0; margin: 0 0 3px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .globe-tooltip .tt-summary { font-size: 10px; color: #94a3b8; margin: 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        /* 2-article carousel: 10 s cycle */
+        @keyframes tt-show-2-a { 0%,43% { opacity:1 } 48%,97% { opacity:0 } 100% { opacity:1 } }
+        @keyframes tt-show-2-b { 0%,47% { opacity:0 } 52%,97% { opacity:1 } 100% { opacity:0 } }
+        /* 3-article carousel: 15 s cycle */
+        @keyframes tt-show-3-a { 0%,27% { opacity:1 } 32%,97% { opacity:0 } 100% { opacity:1 } }
+        @keyframes tt-show-3-b { 0%,30% { opacity:0 } 35%,60% { opacity:1 } 65%,100% { opacity:0 } }
+        @keyframes tt-show-3-c { 0%,63% { opacity:0 } 68%,95% { opacity:1 } 100% { opacity:0 } }
         .globe-tooltip.persistent { 
             transform: translate(-50%, calc(-100% - 20px));
             margin: 0;
@@ -1488,21 +1575,38 @@ export function GlobeComponent({
               </div>
 
               <div className="space-y-6">
-                  <div className="bg-[#161d2b] p-4 rounded-xl">
+                  {/* Tema principal — sincronizado con el carrusel del tooltip */}
+                  <div className="bg-[#161d2b] p-4 rounded-xl transition-all duration-700">
                       <p className="text-xs text-slate-400 mb-1">Tema principal</p>
-                      <p className="text-sm font-semibold text-blue-400">{selectedData.tema}</p>
+                      <p key={carouselIdx + '-title'} className="text-sm font-semibold text-blue-400 leading-snug animate-in fade-in duration-500">
+                          {activeArt?.title || selectedData.tema || '—'}
+                      </p>
+                      {activeArt?.media && (
+                          <span key={carouselIdx + '-media'} className="mt-2 inline-block text-[10px] font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md animate-in fade-in duration-500">
+                              {activeArt.media}
+                          </span>
+                      )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          <p className="text-xl font-bold text-yellow-500">{Number(selectedData.volumen).toLocaleString()}</p>
-                          <p className="text-xs text-slate-400">menciones hoy</p>
-                          <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {selectedData.pctCambio}%</p>
+                          <p className="text-xl font-bold text-yellow-500">
+                              {Number(selectedData.totalDept ?? selectedData.volumen).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-slate-400">artículos</p>
                       </div>
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          <p className="text-md font-bold text-green-500 flex items-center">↑ Positivo <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1 fill-green-500"/></p>
-                          <p className="text-xs text-slate-400">Sentimiento</p>
-                          <p className="text-xs text-blue-400 mt-1 flex items-center">{selectedPlatform || 'TikTok'} <FontAwesomeIcon icon={faStar} className="w-3 h-3 ml-1"/></p>
+                          {(() => {
+                              const toneColorMap: Record<string,string> = { positivo:'#2eb88a', negativo:'#df3a3a', neutral:'#f3b116' };
+                              const sent = selectedData.sentimiento || 'neutral';
+                              const col = toneColorMap[sent] || '#94a3b8';
+                              return <>
+                                  <p className="text-md font-bold" style={{ color: col }}>
+                                      {sent.charAt(0).toUpperCase() + sent.slice(1)}
+                                  </p>
+                                  <p className="text-xs text-slate-400">Sentimiento</p>
+                              </>;
+                          })()}
                       </div>
                   </div>
 
@@ -1517,53 +1621,81 @@ export function GlobeComponent({
                     />
                   </div>
 
+                  {/* Distribución por tono en modo prensa, plataformas en modo social */}
                   <div>
-                    <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
-                    <div className="space-y-2">
-                        {(() => {
-                            const platformEntries = Object.entries(selectedData.plataformas) as [string, number][];
-                            const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
-                            
-                            return platformEntries
-                                .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                                .map(([plat, vol]) => (
-                                    <div key={plat} className="flex items-center gap-3">
-                                        <div style={{ color: platformColors[plat] }}>
-                                            <span dangerouslySetInnerHTML={{ __html: platformIcons[plat.toLowerCase()] || "" }} />
+                    {selectedData.articulos ? (
+                      <>
+                        <p className="text-xs text-slate-400 mb-2">Distribución por tono</p>
+                        <div className="space-y-2">
+                          {([['Positivo','#2eb88a'],['Negativo','#df3a3a'],['Neutro','#f3b116']] as [string,string][]).map(([tone, col]) => {
+                            const v = (selectedData.tonos || {})[tone] || 0;
+                            const tot = Object.values(selectedData.tonos || {}).reduce((a: number, b) => a + (b as number), 0) as number;
+                            return (
+                              <div key={tone} className="flex items-center gap-3">
+                                <span className="text-[10px] font-semibold w-16 shrink-0" style={{ color: col }}>{tone}</span>
+                                <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${tot > 0 ? (v / tot) * 100 : 0}%`, background: col }} />
+                                </div>
+                                <span className="text-xs font-mono w-10 text-right text-white">{v.toLocaleString()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
+                        <div className="space-y-2">
+                            {(() => {
+                                const platformEntries = Object.entries(selectedData.plataformas) as [string, number][];
+                                const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                                return platformEntries
+                                    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                                    .map(([plat, vol]) => (
+                                        <div key={plat} className="flex items-center gap-3">
+                                            <div style={{ color: platformColors[plat] }}>
+                                                <span dangerouslySetInnerHTML={{ __html: platformIcons[plat.toLowerCase()] || "" }} />
+                                            </div>
+                                            <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, background: platformColors[plat] }} />
+                                            </div>
+                                            <span className="text-xs font-mono w-16 text-right text-white">{(vol || 0).toLocaleString()}</span>
                                         </div>
-                                        <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
-                                            <div 
-                                                className="h-full rounded-full transition-all duration-500" 
-                                                style={{ 
-                                                    width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, 
-                                                    background: platformColors[plat] 
-                                                }}
-                                            ></div>
-                                        </div>
-                                        <span className="text-xs font-mono w-16 text-right text-white">{(vol || 0).toLocaleString()}</span>
-                                    </div>
-                                ));
-                        })()}
-                    </div>
+                                    ));
+                            })()}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  
+
+                  {/* Palabras clave extraídas de resúmenes en modo prensa */}
                   <div className="space-y-2">
                     <p className="text-xs text-slate-400">Palabras clave</p>
                     <div className="flex flex-wrap gap-1">
-                        {selectedData.keywords?.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-white">{k}</span>)}
+                        {selectedData.articulos ? (() => {
+                            const STOP = new Set(['de','la','el','en','y','a','los','del','se','las','un','por','con','una','su','para','es','al','que','lo','como','más','pero','sus','le','ya','o','este','esta','sí','porque','fue','han','son','ha','no','su','lo','le','sus','también','entre','si','donde','quien','cuando','cual','sobre','hasta','muy','sin','ser','hay','nos','sus','ante','tras','durante','siendo','así','todo','cada','otro','otros','otra','otras']);
+                            const freq: Record<string,number> = {};
+                            (selectedData.articulos as any[]).forEach((a: any) => {
+                                const text = `${a.title || ''} ${a.summary || ''}`;
+                                text.toLowerCase().replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).forEach(w => {
+                                    if (w.length > 4 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
+                                });
+                            });
+                            return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([w]) => (
+                                <span key={w} className="px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-medium">{w}</span>
+                            ));
+                        })() : selectedData.keywords?.map((k: string) => (
+                            <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-white">{k}</span>
+                        ))}
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-400">Top hashtags</p>
-                    <div className="flex flex-wrap gap-1">
-                        {selectedData.topHashtags?.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
+                  {/* Resumen — sincronizado con el carrusel del tooltip */}
+                  <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs leading-relaxed">
                       <p className="text-slate-400 mb-1">Resumen</p>
-                      {selectedData.resumen}
+                      <p key={carouselIdx + '-summary'} className="text-slate-300 animate-in fade-in duration-500">
+                          {activeArt?.summary || selectedData.resumen || '—'}
+                      </p>
                   </div>
               </div>
           </div>

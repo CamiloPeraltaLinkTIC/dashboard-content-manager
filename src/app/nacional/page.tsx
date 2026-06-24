@@ -5,17 +5,18 @@ import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
 import { KpiCards } from "@/components/kpi-cards";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
-import { AdminPopup } from "@/components/admin-popup";
-import { NacionalMapEditor } from "@/components/nacional-map-editor";
 import { COLOMBIA_DEPARTAMENTOS } from "@/data/colombia-departamentos";
-import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { LiveTicker } from "@/components/live-ticker";
 import { SentimentDonut } from "@/components/sentiment-donut";
-import { faInstagram, faFacebook, faXTwitter, faTiktok } from "@fortawesome/free-brands-svg-icons";
-import { faRotate, faArrowTrendUp, faArrowTrendDown, faLocationDot, faMapLocationDot, faLayerGroup } from "@fortawesome/free-solid-svg-icons";
+import { analyzerSupabase } from "@/lib/supabase-analyzer";
+import {
+  faRotate,
+  faMapLocationDot, faLayerGroup,
+  faNewspaper,
+} from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { ExternalLink } from "lucide-react";
 
 const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComponent), {
   ssr: false,
@@ -26,256 +27,432 @@ const Globe = dynamic(() => import("@/components/globe").then((m) => m.GlobeComp
   ),
 });
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const COLOMBIA_POV = { lat: 4.6, lng: -73.8, altitude: 0.6 };
+
 const sentimentColors: Record<string, string> = {
   positivo: "rgb(46, 184, 138)",
   negativo: "rgb(223, 58, 58)",
-  neutral: "rgb(243, 177, 22)",
-  mixto: "hsl(42 90% 52%)",
+  neutral:  "rgb(243, 177, 22)",
+  mixto:    "hsl(42 90% 52%)",
 };
 
-const platformColors: Record<string, string> = {
-  X: "rgb(255, 255, 255)",
-  Facebook: "rgb(24, 119, 242)",
-  Instagram: "rgb(225, 48, 108)",
-  TikTok: "rgb(105, 201, 208)",
+const toneColors: Record<string, string> = {
+  Positivo: "rgb(46, 184, 138)",
+  Negativo: "rgb(223, 58, 58)",
+  Neutro:   "rgb(243, 177, 22)",
 };
 
-const platformConfig: Record<string, { icon: any }> = {
-  TikTok: { icon: faTiktok },
-  X: { icon: faXTwitter },
-  Instagram: { icon: faInstagram },
-  Facebook: { icon: faFacebook },
+const toneBadge: Record<string, string> = {
+  Positivo: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  Negativo: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  Neutro:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
-// Cámara inicial centrada y con zoom cerrado sobre Colombia
-const COLOMBIA_POV = { lat: 4.6, lng: -73.8, altitude: 0.6 };
+// ─── Region → Dept ID mapping ─────────────────────────────────────────────────
 
-const DepartmentDetail = ({ dep, selectedPlatform }: { dep: any; selectedPlatform: string | null }) => {
-  if (!dep) return null;
-  const pct = dep.sentimientoPct || { positivo: 0, neutral: 0, negativo: 0 };
-  const platformEntries = Object.entries(dep.plataformas || {}) as [string, number][];
-  const trueTotal = platformEntries.reduce((acc, [, v]) => acc + (v || 0), 0);
+function normalizeStr(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+
+const REGION_MAP: Record<string, string> = {
+  antioquia: "05",
+  atlantico: "08",
+  bogota: "11", "bogota d.c": "11", "bogota dc": "11",
+  "distrito capital": "11", "santafe de bogota": "11",
+  "santafe de bogota d.c": "11",
+  bolivar: "13",
+  boyaca: "15",
+  caldas: "17",
+  caqueta: "18",
+  cauca: "19",
+  cesar: "20",
+  cordoba: "23",
+  cundinamarca: "25",
+  choco: "27",
+  huila: "41",
+  "la guajira": "44", guajira: "44",
+  magdalena: "47",
+  meta: "50",
+  narino: "52",
+  "norte de santander": "54", "norte santander": "54",
+  quindio: "63",
+  risaralda: "66",
+  santander: "68",
+  sucre: "70",
+  tolima: "73",
+  "valle del cauca": "76", valle: "76",
+  arauca: "81",
+  casanare: "85",
+  putumayo: "86",
+  "san andres": "88", "san andres providencia": "88",
+  amazonas: "91",
+  guainia: "94",
+  guaviare: "95",
+  vaupes: "97",
+  vichada: "99",
+};
+
+function regionToDeptId(region: string | null | undefined): string | null {
+  if (!region) return null;
+  const norm = normalizeStr(region);
+  if (REGION_MAP[norm]) return REGION_MAP[norm];
+  for (const [key, id] of Object.entries(REGION_MAP)) {
+    if (norm.includes(key) || key.includes(norm)) return id;
+  }
+  return null;
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Article {
+  id: string;
+  url: string;
+  title: string;
+  tone: string;
+  emoji: string;
+  media: string;
+  type: string;
+  region: string;
+  summary: string;
+  tier: string;
+  timestamp: string;
+}
+
+interface DeptData {
+  id: string;
+  nombre: string;
+  label: string;
+  pais: string;
+  capital: string;
+  lat: number;
+  lng: number;
+  volumen: number;
+  tonos: Record<string, number>;
+  sentimientoPct: { positivo: number; neutral: number; negativo: number };
+  sentimiento: string;
+  articulos: Article[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeTone(raw: string | null | undefined): string {
+  if (!raw) return "Neutro";
+  const t = raw.trim().toLowerCase();
+  if (t === "positivo" || t === "positive") return "Positivo";
+  if (t === "negativo" || t === "negative") return "Negativo";
+  return "Neutro";
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function dominantTone(tonos: Record<string, number>): string {
+  const entries = Object.entries(tonos).filter(([, v]) => v > 0);
+  if (!entries.length) return "neutral";
+  const [tone] = entries.sort(([, a], [, b]) => b - a)[0];
+  return tone.toLowerCase() === "neutro" ? "neutral" : tone.toLowerCase();
+}
+
+function buildDeptMap(articles: Article[]): Record<string, Article[]> {
+  const map: Record<string, Article[]> = {};
+  for (const a of articles) {
+    const deptId = regionToDeptId(a.region);
+    if (!deptId) continue;
+    if (!map[deptId]) map[deptId] = [];
+    map[deptId].push(a);
+  }
+  return map;
+}
+
+// ─── Department detail panel ──────────────────────────────────────────────────
+
+const DepartmentDetail = ({ dep, selectedTone }: { dep: DeptData; selectedTone: string | null }) => {
+  const { positivo, neutral, negativo } = dep.sentimientoPct;
+
+  const articles = useMemo(
+    () => shuffle(selectedTone ? dep.articulos.filter((a) => a.tone === selectedTone) : dep.articulos),
+    [dep.articulos, selectedTone]
+  );
+
   return (
     <div className="p-5 space-y-4 bg-[#0b101d] border border-white/10 rounded-2xl text-white">
-      <div className="flex justify-between items-start">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-2xl font-bold text-slate-400">{dep.id}</span>
-          <div>
-            <h3 className="text-xl font-bold leading-tight">{dep.label ?? dep.pais}</h3>
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-              <FontAwesomeIcon icon={faLocationDot} className="w-3 h-3" /> {dep.capital} · {dep.updateTime}
-            </p>
-          </div>
-        </div>
-        <span className="text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6" }}>
-          NACIONAL
-        </span>
+      {/* Header */}
+      <div>
+        <h3 className="text-xl font-bold leading-tight">{dep.label ?? dep.pais}</h3>
+        <p className="text-xs text-slate-400 mt-0.5">{dep.capital}</p>
       </div>
 
-      <div className="bg-[#161d2b] p-4 rounded-xl">
-        <p className="text-xs text-slate-400 mb-1">Tema principal</p>
-        <p className="text-sm font-semibold text-blue-400">{dep.tema}</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[#161d2b] p-4 rounded-xl">
-          <p className="text-2xl font-bold text-yellow-500">{Number(dep.volumen).toLocaleString()}</p>
-          <p className="text-xs text-slate-400">menciones</p>
-          <p className={`text-xs flex items-center mt-1 ${dep.pctCambio >= 0 ? "text-green-500" : "text-red-500"}`}>
-            <FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1" /> {dep.pctCambio}%
-          </p>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-[#161d2b] p-3 rounded-xl">
+          <p className="text-2xl font-bold text-yellow-500">{dep.volumen.toLocaleString()}</p>
+          <p className="text-xs text-slate-400">artículos</p>
         </div>
-        <div className="bg-[#161d2b] p-4 rounded-xl">
-          <p className="text-lg font-bold capitalize" style={{ color: sentimentColors[dep.sentimiento] || "#94a3b8" }}>{dep.sentimiento}</p>
-          <p className="text-xs text-slate-400">Sentimiento</p>
+        <div className="bg-[#161d2b] p-3 rounded-xl">
+          <SentimentDonut
+            positivo={positivo || 0}
+            neutral={neutral || 0}
+            negativo={negativo || 0}
+            colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
+          />
         </div>
       </div>
 
-      <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
-        <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-        <SentimentDonut
-          positivo={pct.positivo || 0}
-          neutral={pct.neutral || 0}
-          negativo={pct.negativo || 0}
-          colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
-        />
-      </div>
-
-      {platformEntries.length > 0 && (
-        <div>
-          <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
-          <div className="space-y-2">
-            {platformEntries
-              .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-              .map(([plat, vol]) => (
-                <div key={plat} className="flex items-center gap-3">
-                  <div style={{ color: platformColors[plat] }}>
-                    {platformConfig[plat] ? <FontAwesomeIcon icon={platformConfig[plat].icon} className="w-5 h-5" /> : null}
-                  </div>
-                  <div className={`flex-1 h-1.5 rounded-full bg-[#161d2b] ${selectedPlatform && selectedPlatform !== plat ? "opacity-40" : ""}`}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, background: platformColors[plat] }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-mono w-16 text-right">{(vol || 0).toLocaleString()}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {dep.topHashtags?.length > 0 && (
+      {/* Article list */}
+      {articles.length === 0 ? (
+        <p className="text-xs text-slate-500 italic">Sin artículos para este departamento.</p>
+      ) : (
         <div className="space-y-2">
-          <p className="text-xs text-slate-400">Top hashtags</p>
-          <div className="flex flex-wrap gap-1">
-            {dep.topHashtags.map((h: string) => (
-              <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>
+          <p className="text-xs text-slate-400">{articles.length} {articles.length === 1 ? "artículo" : "artículos"}</p>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {articles.map((a) => (
+              <div key={a.id} className="p-3 rounded-xl bg-[#0e1526] border border-white/5 space-y-1.5">
+                {/* Tone + media row */}
+                <div className="flex items-center justify-between gap-2">
+                  {a.tone && (
+                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg border shrink-0 ${toneBadge[a.tone] ?? "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                      {a.tone}
+                    </span>
+                  )}
+                  {a.media && (
+                    <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                      {a.media}
+                    </span>
+                  )}
+                </div>
+
+                {/* Title */}
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-100 leading-snug">{a.title}</p>
+                  {a.url && (
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-indigo-400 hover:text-indigo-300 transition-colors mt-0.5"
+                    >
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+
+                {/* Summary */}
+                {a.summary && (
+                  <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-2">{a.summary}</p>
+                )}
+              </div>
             ))}
           </div>
         </div>
       )}
-
-      <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
-        <p className="text-slate-400 mb-1">Resumen</p>
-        {dep.resumen}
-      </div>
     </div>
   );
 };
 
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function NacionalPage() {
   const { firstName } = useAuth();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<DeptData[]>([]);
+  const [totalRaw, setTotalRaw] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [selectedTone, setSelectedTone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editorOpen, setEditorOpen] = useState(false);
 
-  // `silent`: refresco en vivo (Realtime) sin mostrar la pantalla de carga.
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
-    const { data: rows } = await supabase.from("content_manager_nacional_departamentos").select("*");
-    const byId: Record<string, any> = {};
-    (rows || []).forEach((r: any) => { byId[r.id] = r; });
 
-    // La lista canónica garantiza los 33 departamentos (identidad + geometría);
-    // las métricas multiplataforma se superponen desde la BD cuando existen.
-    const merged = COLOMBIA_DEPARTAMENTOS.map((dep) => {
-      const r = byId[dep.id];
-      const plataformas = r?.plataformas ?? { TikTok: 0, X: 0, Instagram: 0, Facebook: 0 };
-      const volumen = r?.volumen ?? Object.values(plataformas).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+    // Conteo exacto total de la tabla (sin límite de filas)
+    const { count: exactCount } = await analyzerSupabase
+      .from("analyses")
+      .select("*", { count: "exact", head: true });
+    setTotalRaw(exactCount ?? 0);
+
+    // Traer todas las filas paginando de 1 000 en 1 000
+    const allRows: Article[] = [];
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data: page } = await analyzerSupabase
+        .from("analyses")
+        .select("id, url, title, tone, emoji, media, type, region, summary, tier, timestamp")
+        .range(from, from + PAGE - 1);
+      if (!page || page.length === 0) break;
+      allRows.push(...(page as Article[]));
+      if (page.length < PAGE) break;
+      from += PAGE;
+    }
+
+    // Normalizar tono en todas las filas antes de agrupar
+    const articles = allRows.map((a) => ({ ...a, tone: normalizeTone(a.tone) }));
+    const byDept = buildDeptMap(articles);
+
+    const merged: DeptData[] = COLOMBIA_DEPARTAMENTOS.map((dep) => {
+      const arts = byDept[dep.id] ?? [];
+      const tonos: Record<string, number> = {};
+      for (const a of arts) {
+        tonos[a.tone] = (tonos[a.tone] || 0) + 1;
+      }
+      const total = arts.length;
+      const posCount = tonos["Positivo"] || 0;
+      const negCount = tonos["Negativo"] || 0;
+      const neuCount = tonos["Neutro"]   || 0;
+      const sentimientoPct = total > 0
+        ? {
+            positivo: Math.round((posCount / total) * 100),
+            negativo: Math.round((negCount / total) * 100),
+            neutral:  Math.round((neuCount / total) * 100),
+          }
+        : { positivo: 0, negativo: 0, neutral: 0 };
+
       return {
         id: dep.id,
         nombre: dep.nombre,
         label: dep.displayNombre ?? dep.nombre,
-        pais: dep.nombre, // El globo usa "pais" como nombre de la región a pintar
-        capital: r?.capital ?? dep.capital,
+        pais: dep.nombre,
+        capital: dep.capital,
         lat: dep.lat,
         lng: dep.lng,
-        tema: r?.tema ?? "",
-        keywords: r?.keywords ?? [],
-        sentimiento: r?.sentimiento ?? "neutral",
-        sentimientoPct: r?.sentimiento_pct ?? { positivo: 0, neutral: 0, negativo: 0 },
-        volumen,
-        plataformaDominante: r?.plataforma_dominante ?? "TikTok",
-        plataformas,
-        resumen: r?.resumen ?? "",
-        tendencia: r?.tendencia ?? "estable",
-        pctCambio: r?.pct_cambio ?? 0,
-        topHashtags: r?.top_hashtags ?? [],
-        updateTime: r?.update_time ?? "",
+        volumen: total,
+        totalDept: total,
+        tonos,
+        plataformas: tonos,
+        sentimientoPct,
+        sentimiento: dominantTone(tonos),
+        articulos: arts,
       };
     });
+
     setData(merged);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // Actualización automática en vivo: se refresca apenas entran datos nuevos
-  // (desde el editor, un import de Excel o cualquier otro dispositivo).
-  useRealtimeRefresh(["content_manager_nacional_departamentos"], () => fetchData(true), { paused: editorOpen });
-
-  // Volumen según la plataforma seleccionada (o total si no hay filtro).
-  const volOf = (d: any) => (selectedPlatform ? Number(d.plataformas?.[selectedPlatform]) || 0 : d.volumen || 0);
+  const volOf = (d: DeptData) =>
+    selectedTone ? (d.tonos[selectedTone] || 0) : d.volumen;
 
   const selectedDep = useMemo(() => data.find((d) => d.id === selected), [data, selected]);
 
   const sortedDeps = useMemo(
     () => [...data].sort((a, b) => volOf(b) - volOf(a)),
-    [data, selectedPlatform]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, selectedTone]
   );
 
-  const maxVolume = useMemo(() => Math.max(...data.map((d) => volOf(d)), 1), [data, selectedPlatform]);
+  const maxVolume = useMemo(
+    () => Math.max(...data.map((d) => volOf(d)), 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, selectedTone]
+  );
 
   const kpis = useMemo(() => {
     if (data.length === 0) {
       return [
-        { label: "Menciones nacionales", value: "0", delta: null, trend: "neutral" as const },
-        { label: "Departamentos activos", value: "0", delta: null, trend: "neutral" as const },
-        { label: "Sentimiento positivo", value: "0%", delta: null, trend: "neutral" as const },
+        { label: "Artículos en prensa", value: "0", delta: null, trend: "neutral" as const },
+        { label: "Departamentos con cobertura", value: "0", delta: null, trend: "neutral" as const },
+        { label: "Cobertura positiva", value: "0%", delta: null, trend: "neutral" as const },
         { label: "Departamento líder", value: "---", delta: null, trend: "neutral" as const },
       ];
     }
-    const total = data.reduce((acc, d) => acc + volOf(d), 0);
     const activos = data.filter((d) => volOf(d) > 0).length;
-    let wPos = 0, wVol = 0;
-    data.forEach((d) => {
-      const v = volOf(d);
-      if (v > 0 && d.sentimientoPct) { wPos += (d.sentimientoPct.positivo || 0) * v; wVol += v; }
-    });
-    const avgPos = wVol > 0 ? Math.round(wPos / wVol) : 0;
+    // Conteo real: artículos Positivo / total artículos con tono mapeado
+    const totalPos = data.reduce((acc, d) => acc + (d.tonos["Positivo"] || 0), 0);
+    const totalNeg = data.reduce((acc, d) => acc + (d.tonos["Negativo"] || 0), 0);
+    const totalNeu = data.reduce((acc, d) => acc + (d.tonos["Neutro"]   || 0), 0);
+    const totalToned = totalPos + totalNeg + totalNeu;
+    const avgPos = totalToned > 0 ? Math.round((totalPos / totalToned) * 100) : 0;
     const top = sortedDeps[0];
-    const fmt = (v: number) => (v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(1) + "K" : String(v));
+    const fmt = (v: number) =>
+      v >= 1_000_000 ? (v / 1_000_000).toFixed(1) + "M" :
+      v >= 1_000     ? (v / 1_000).toFixed(1) + "K"     : String(v);
     return [
-      { label: "Menciones nacionales", value: fmt(total), delta: null, trend: "up" as const },
-      { label: "Departamentos activos", value: `${activos}/${data.length}`, delta: null, trend: "neutral" as const },
-      { label: "Sentimiento positivo", value: `${avgPos}%`, delta: null, trend: avgPos > 50 ? ("up" as const) : ("down" as const) },
-      { label: "Departamento líder", value: top ? (top.label ?? top.pais) : "---", delta: fmt(top ? volOf(top) : 0), trend: "up" as const },
+      { label: "Artículos en prensa",          value: totalRaw.toLocaleString("es-CO"), delta: null, trend: "up" as const },
+      { label: "Departamentos con cobertura",  value: `${activos}/${data.length}`, delta: null, trend: "neutral" as const },
+      { label: "Cobertura positiva",           value: `${avgPos}%`,  delta: null, trend: avgPos > 50 ? ("up" as const) : ("down" as const) },
+      { label: "Departamento líder",           value: top ? (top.label ?? top.pais) : "---", delta: fmt(top ? volOf(top) : 0), trend: "up" as const },
     ];
-  }, [data, sortedDeps, selectedPlatform]);
+  }, [data, sortedDeps, selectedTone, totalRaw]);
 
-  if (loading) return <div className="h-screen page-bg text-white flex justify-center items-center">Cargando conversación nacional...</div>;
+  if (loading) {
+    return (
+      <div className="h-screen page-bg text-white flex justify-center items-center">
+        Cargando conversación nacional...
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col p-6 gap-6 page-bg text-white">
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
           <span className="bg-[#1e293b] text-blue-400 text-xs px-2 py-1 rounded-full border border-blue-500/20">🇨🇴 MAPA NACIONAL</span>
-          <span className="inline-flex items-center gap-2 bg-[#0f291e] text-green-400 text-xs px-2.5 py-1 rounded-full border border-green-500/20"><span className="live-dot" style={{ background: "#34d399", boxShadow: "0 0 8px #34d399" }} /> EN TIEMPO REAL</span>
-        </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight gradient-text text-glow-blue break-words">Conversación Nacional — CNE Colombia</h1>
-          <p className="text-slate-400 mt-2">Hola {firstName}, bienvenido. Conoce la narrativa y las tendencias del proceso electoral por departamento. Haz clic en un departamento para ver el detalle.</p>
+          <span className="inline-flex items-center gap-2 bg-[#0f291e] text-green-400 text-xs px-2.5 py-1 rounded-full border border-green-500/20">
+            <FontAwesomeIcon icon={faNewspaper} className="w-3 h-3" /> MONITOREO DE PRENSA
+          </span>
         </div>
 
-        {sortedDeps.length > 0 && (
-          <LiveTicker
-            liveLabel="En vivo"
-            items={sortedDeps.slice(0, 14).map((d) => ({
-              code: d.id,
-              label: d.label ?? d.pais,
-              value: volOf(d),
-              pct: d.pctCambio || 0,
-              color: "#3b82f6",
-            }))}
-          />
-        )}
+        <div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight gradient-text text-glow-blue break-words">
+            Conversación Nacional — CNE Colombia
+          </h1>
+          <p className="text-slate-400 mt-2">
+            Hola {firstName}, bienvenido. Cobertura de prensa por departamento. Haz clic en un departamento para ver los artículos.
+          </p>
+        </div>
+
+        {sortedDeps.length > 0 && (() => {
+          const tickerDeps = sortedDeps.filter((d) => volOf(d) > 0).slice(0, 14);
+          const tickerTotal = tickerDeps.reduce((acc, d) => acc + volOf(d), 0);
+          return (
+            <LiveTicker
+              liveLabel="Prensa"
+              items={tickerDeps.map((d) => ({
+                code: d.id,
+                label: d.label ?? d.pais,
+                value: volOf(d),
+                pct: tickerTotal > 0 ? Math.round((volOf(d) / tickerTotal) * 100 * 10) / 10 : 0,
+                color: selectedTone
+                  ? toneColors[selectedTone]
+                  : (sentimentColors[d.sentimiento] || "#3b82f6"),
+              }))}
+            />
+          );
+        })()}
 
         <KpiCards items={kpis} />
 
         <div className="flex flex-wrap gap-2 items-center mt-2">
-          <Button variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${!selectedPlatform ? "bg-primary/20 border-primary" : "text-white"}`} onClick={() => setSelectedPlatform(null)}>Todas</Button>
-          {Object.keys(platformConfig).map((plat) => (
-            <Button key={plat} variant="outline" size="sm" className={`bg-[#0b101d] border-white/10 ${selectedPlatform === plat ? "bg-primary/20 border-primary" : "text-white"}`} onClick={() => setSelectedPlatform(plat)}>
-              <FontAwesomeIcon icon={platformConfig[plat].icon} className="mr-2" /> {plat}
+          <Button
+            variant="outline" size="sm"
+            className={`bg-[#0b101d] border-white/10 ${!selectedTone ? "bg-primary/20 border-primary" : "text-white"}`}
+            onClick={() => setSelectedTone(null)}
+          >
+            Todos
+          </Button>
+          {(["Positivo", "Negativo", "Neutro"] as const).map((tone) => (
+            <Button
+              key={tone} variant="outline" size="sm"
+              className={`bg-[#0b101d] border-white/10 ${selectedTone === tone ? "bg-primary/20 border-primary" : "text-white"}`}
+              onClick={() => setSelectedTone(tone)}
+            >
+              <span className="w-2 h-2 rounded-full mr-2 inline-block" style={{ background: toneColors[tone] }} />
+              {tone}
             </Button>
           ))}
-          <Button variant="outline" size="sm" className="bg-[#0b101d] border-white/10 text-white" onClick={() => fetchData()}>
+          <Button
+            variant="outline" size="sm"
+            className="bg-[#0b101d] border-white/10 text-white"
+            onClick={() => fetchData()}
+          >
             <FontAwesomeIcon icon={faRotate} className="h-4 w-4 mr-2" /> Actualizar
           </Button>
         </div>
@@ -288,19 +465,18 @@ export default function NacionalPage() {
               className="h-full"
               onSelect={(id: string) => setSelected(id || null)}
               selectedCountryId={selected}
-              selectedPlatform={selectedPlatform}
+              selectedPlatform={selectedTone}
               countriesData={data}
               globeMarkers={[]}
               sentimentColors={sentimentColors}
-              platformColors={platformColors}
+              platformColors={toneColors}
               title="Conversación Nacional — CNE Colombia"
-              // Configuración geográfica: Colombia por departamentos
               geoUrl="/colombia-departamentos.geojson"
               regionNameProp="NOMBRE_DPT"
               initialPov={COLOMBIA_POV}
               tourAltitude={0.6}
               showFlag={false}
-              unitLabel="menciones"
+              unitLabel="artículos"
               initialTourActive={true}
               plainGlobe
             />
@@ -308,14 +484,14 @@ export default function NacionalPage() {
         </Card>
 
         <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
-          <div className="shrink-0 lg:max-h-[58%] overflow-y-auto pr-1">
+          <div className="shrink-0 lg:max-h-[65%] overflow-y-auto pr-1">
             {selectedDep ? (
-              <DepartmentDetail dep={selectedDep} selectedPlatform={selectedPlatform} />
+              <DepartmentDetail dep={selectedDep} selectedTone={selectedTone} />
             ) : (
               <Card className="p-6 h-40 flex flex-col items-center justify-center text-center bg-[#0b101d]/50 border border-white/5 text-white">
                 <FontAwesomeIcon icon={faMapLocationDot} className="w-8 h-8 text-blue-500 mb-2" />
                 <h3 className="font-bold">Selecciona un departamento</h3>
-                <p className="text-xs text-slate-400 mt-1">Haz clic en el mapa o en el ranking para ver el detalle de la conversación.</p>
+                <p className="text-xs text-slate-400 mt-1">Haz clic en el mapa o en el ranking para ver los artículos de prensa.</p>
               </Card>
             )}
           </div>
@@ -323,7 +499,7 @@ export default function NacionalPage() {
           <Card className="bg-[#0b101d] border border-white/10 p-4 text-white flex-1 min-h-0 flex flex-col">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <h3 className="font-bold text-sm flex items-center gap-2">
-                <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4 text-blue-400" /> Ranking por menciones
+                <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4 text-blue-400" /> Ranking por artículos
               </h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-slate-400">TOP 10</span>
             </div>
@@ -354,19 +530,19 @@ export default function NacionalPage() {
         </div>
       </div>
 
-      {/* Grilla de todos los departamentos */}
+      {/* Grid de todos los departamentos */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <FontAwesomeIcon icon={faLayerGroup} className="w-4 h-4 text-blue-400" /> Todos los departamentos
           </h2>
-          <span className="text-xs text-slate-400">{sortedDeps.length} departamentos · orden por menciones</span>
+          <span className="text-xs text-slate-400">{sortedDeps.length} departamentos · orden por artículos</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           {sortedDeps.map((d, i) => {
             const isSel = selected === d.id;
-            const up = (d.pctCambio || 0) >= 0;
+            const count = volOf(d);
             return (
               <button
                 key={d.id}
@@ -377,36 +553,24 @@ export default function NacionalPage() {
                   <span className="font-mono text-[10px] text-slate-500">#{i + 1} · {d.id}</span>
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: sentimentColors[d.sentimiento] || "#64748b" }}
-                    title={d.sentimiento}
+                    style={{ background: selectedTone ? toneColors[selectedTone] : (sentimentColors[d.sentimiento] || "#64748b") }}
+                    title={selectedTone ?? d.sentimiento}
                   />
                 </div>
-
-                <h3 className="text-sm font-semibold text-white leading-tight truncate" title={d.label ?? d.pais}>{d.label ?? d.pais}</h3>
+                <h3 className="text-sm font-semibold text-white leading-tight truncate" title={d.label ?? d.pais}>
+                  {d.label ?? d.pais}
+                </h3>
                 <p className="text-[10px] text-slate-500 truncate mb-2">{d.capital}</p>
-
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-lg font-bold" style={{ color: "#3b82f6" }}>{Number(volOf(d)).toLocaleString()}</span>
-                  <span className={`text-[10px] flex items-center gap-0.5 ${up ? "text-green-500" : "text-red-500"}`}>
-                    <FontAwesomeIcon icon={up ? faArrowTrendUp : faArrowTrendDown} className="w-2.5 h-2.5" />
-                    {Math.abs(d.pctCambio || 0)}%
-                  </span>
-                </div>
-                <p className="text-[9px] uppercase tracking-wider text-slate-500">menciones</p>
-
+                <span className="text-lg font-bold" style={{ color: "#3b82f6" }}>{count.toLocaleString()}</span>
+                <p className="text-[9px] uppercase tracking-wider text-slate-500">artículos</p>
                 <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(volOf(d) / maxVolume) * 100}%`, background: "#3b82f6" }} />
+                  <div className="h-full rounded-full" style={{ width: `${maxVolume > 0 ? (count / maxVolume) * 100 : 0}%`, background: "#3b82f6" }} />
                 </div>
               </button>
             );
           })}
         </div>
       </div>
-
-      {/* Editor (solo admin): ingresar/editar datos multiplataforma por departamento */}
-      <AdminPopup title="Editor · Conversación Nacional (multiplataforma)" open={editorOpen} onOpenChange={setEditorOpen}>
-        <NacionalMapEditor data={data} onSaved={() => fetchData()} />
-      </AdminPopup>
     </div>
   );
 }
