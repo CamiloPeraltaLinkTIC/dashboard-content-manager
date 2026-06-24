@@ -1597,12 +1597,12 @@ export function GlobeComponent({
                       </div>
                       <div className="bg-[#161d2b] p-4 rounded-xl">
                           {(() => {
-                              const toneColorMap: Record<string,string> = { positivo:'#2eb88a', negativo:'#df3a3a', neutral:'#f3b116' };
-                              const sent = selectedData.sentimiento || 'neutral';
-                              const col = toneColorMap[sent] || '#94a3b8';
+                              const toneColorMap: Record<string,string> = { Positivo:'#2eb88a', positivo:'#2eb88a', Negativo:'#df3a3a', negativo:'#df3a3a', Neutro:'#f3b116', neutral:'#f3b116' };
+                              const raw = activeArt?.tone || selectedData.sentimiento || 'neutral';
+                              const col = toneColorMap[raw] || '#94a3b8';
                               return <>
-                                  <p className="text-md font-bold" style={{ color: col }}>
-                                      {sent.charAt(0).toUpperCase() + sent.slice(1)}
+                                  <p key={carouselIdx + '-sent'} className="text-md font-bold animate-in fade-in duration-500" style={{ color: col }}>
+                                      {raw.charAt(0).toUpperCase() + raw.slice(1)}
                                   </p>
                                   <p className="text-xs text-slate-400">Sentimiento</p>
                               </>;

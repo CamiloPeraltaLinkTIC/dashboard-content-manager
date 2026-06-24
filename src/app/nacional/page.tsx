@@ -470,7 +470,7 @@ export default function NacionalPage() {
               globeMarkers={[]}
               sentimentColors={sentimentColors}
               platformColors={toneColors}
-              title="Conversación Nacional — CNE Colombia"
+              title="Conversación Nacional en Medios — CNE Colombia"
               geoUrl="/colombia-departamentos.geojson"
               regionNameProp="NOMBRE_DPT"
               initialPov={COLOMBIA_POV}
