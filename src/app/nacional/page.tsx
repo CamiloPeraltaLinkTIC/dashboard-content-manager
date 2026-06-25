@@ -474,6 +474,7 @@ export default function NacionalPage() {
               geoUrl="/colombia-departamentos.geojson"
               regionNameProp="NOMBRE_DPT"
               initialPov={COLOMBIA_POV}
+              fullscreenAltitude={0.35}
               tourAltitude={0.6}
               showFlag={false}
               unitLabel="artículos"

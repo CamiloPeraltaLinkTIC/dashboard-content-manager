@@ -180,6 +180,7 @@ interface GlobeProps {
     geoObjectKey?: string;      // Clave dentro de topology.objects (solo TopoJSON)
     regionNameProp?: string;    // Propiedad del feature que tiene el nombre de la región
     initialPov?: { lat: number; lng: number; altitude: number }; // Cámara inicial
+    fullscreenAltitude?: number; // Altitud al entrar en pantalla completa (zoom-in)
     tourAltitude?: number;      // Altitud de cámara durante el tour
     showFlag?: boolean;         // Mostrar bandera de país en tooltips (off para departamentos)
     unitLabel?: string;         // Etiqueta de la métrica (ej: "menciones")
@@ -206,6 +207,7 @@ export function GlobeComponent({
     geoObjectKey = "countries",
     regionNameProp = "name",
     initialPov,
+    fullscreenAltitude,
     tourAltitude = 2,
     showFlag = true,
     unitLabel = "menciones",
@@ -343,6 +345,17 @@ export function GlobeComponent({
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  // Zoom al entrar/salir de fullscreen cuando fullscreenAltitude está definido
+  useEffect(() => {
+    if (!fullscreenAltitude || !globeEl.current?.pointOfView) return;
+    if (isFullscreen) {
+      const cur = globeEl.current.pointOfView();
+      globeEl.current.pointOfView({ lat: cur.lat, lng: cur.lng, altitude: fullscreenAltitude }, 800);
+    } else if (initialPov) {
+      globeEl.current.pointOfView(initialPov, 800);
+    }
+  }, [isFullscreen, fullscreenAltitude, initialPov]);
 
   // Pausar el render loop WebGL cuando no se está viendo (pestaña en segundo
   // plano o globo fuera del viewport). Evita gastar GPU/CPU/batería renderizando
