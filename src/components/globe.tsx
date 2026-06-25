@@ -763,7 +763,7 @@ export function GlobeComponent({
     if (tot === 0) return "#4aa3ff";
     const p = pos / tot, n = neg / tot;
     if (p - n > 8) return "#3fd6a0";
-    if (n - p > 8) return "#ff5a5a";
+    // El sentimiento negativo ya NO tiñe el halo de rojo: se mantiene en azul.
     return "#4aa3ff";
   }, [countriesData, mode, plainGlobe, volumeOf]);
 
