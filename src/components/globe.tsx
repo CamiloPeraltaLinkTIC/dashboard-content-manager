@@ -591,8 +591,6 @@ export function GlobeComponent({
         if (countryData) {
             const toneColorMap: Record<string, string> = { Positivo: "#2eb88a", Negativo: "#df3a3a", Neutro: "#f3b116" };
             const sentMap: Record<string, string> = { positivo: "#2eb88a", negativo: "#df3a3a", neutral: "#f3b116" };
-            const allArts: any[] = countryData.articulos || [];
-            const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
             const displayCount = selectedPlatform
                 ? ((countryData.tonos || countryData.plataformas || {})[selectedPlatform] || 0)
                 : (countryData.totalDept ?? countryData.volumen);
@@ -602,13 +600,36 @@ export function GlobeComponent({
             const sentLabel = selectedPlatform || (countryData.sentimiento
                 ? countryData.sentimiento.charAt(0).toUpperCase() + countryData.sentimiento.slice(1)
                 : "Sin datos");
-            contentHtml = `
-                ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryId)}
-                <div class="stats">
-                    <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
-                    <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
-                </div>
-            `;
+
+            if (countryData.articulos) {
+                // Modo prensa (CNE) — carrusel de artículos
+                const allArts: any[] = countryData.articulos;
+                const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
+                contentHtml = `
+                    ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryId)}
+                    <div class="stats">
+                        <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                        <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
+                    </div>
+                `;
+            } else {
+                // Modo social (globo mundial) — ícono de plataforma dominante + tema
+                const plats = countryData.plataformas || {};
+                const dominantPlat = selectedPlatform || (Object.entries(plats).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] ?? '');
+                const iconSvg = platformIcons[dominantPlat.toLowerCase()] || '';
+                contentHtml = `
+                    <div class="platform">
+                        ${iconSvg ? `<span style="display:inline-flex;align-items:center;width:14px;height:14px;">${iconSvg}</span>` : ''}
+                        <span style="font-size:11px;color:#94a3b8;">${dominantPlat}</span>
+                        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#f3b116;background:rgba(243,177,22,0.12);border:1px solid rgba(243,177,22,0.3);padding:1px 6px;border-radius:4px;">Dominante</span>
+                    </div>
+                    ${countryData.tema ? `<div class="theme">${countryData.tema}</div>` : ''}
+                    <div class="stats">
+                        <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                        <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
+                    </div>
+                `;
+            }
         }
     }
 
@@ -905,8 +926,6 @@ export function GlobeComponent({
         if (countryData) {
             const toneColorMap: Record<string, string> = { Positivo: "#2eb88a", Negativo: "#df3a3a", Neutro: "#f3b116" };
             const sentMap: Record<string, string> = { positivo: "#2eb88a", negativo: "#df3a3a", neutral: "#f3b116" };
-            const allArts: any[] = countryData.articulos || [];
-            const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
             const displayCount = selectedPlatform
                 ? ((countryData.tonos || countryData.plataformas || {})[selectedPlatform] || 0)
                 : (countryData.totalDept ?? countryData.volumen);
@@ -916,13 +935,36 @@ export function GlobeComponent({
             const sentLabel = selectedPlatform || (countryData.sentimiento
                 ? countryData.sentimiento.charAt(0).toUpperCase() + countryData.sentimiento.slice(1)
                 : "Sin datos");
-            content = `
-                ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryData.id)}
-                <div class="stats">
-                    <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
-                    <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
-                </div>
-            `;
+
+            if (countryData.articulos) {
+                // Modo prensa (CNE)
+                const allArts: any[] = countryData.articulos;
+                const filteredArts = selectedPlatform ? allArts.filter((a: any) => a.tone === selectedPlatform) : allArts;
+                content = `
+                    ${buildArticlesHtml(filteredArts, toneColorMap, 3, countryData.id)}
+                    <div class="stats">
+                        <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                        <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
+                    </div>
+                `;
+            } else {
+                // Modo social (globo mundial) — ícono de plataforma dominante + tema
+                const plats = countryData.plataformas || {};
+                const dominantPlat = selectedPlatform || (Object.entries(plats).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] ?? '');
+                const iconSvg = platformIcons[dominantPlat.toLowerCase()] || '';
+                content = `
+                    <div class="platform">
+                        ${iconSvg ? `<span style="display:inline-flex;align-items:center;width:14px;height:14px;">${iconSvg}</span>` : ''}
+                        <span style="font-size:11px;color:#94a3b8;">${dominantPlat}</span>
+                        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#f3b116;background:rgba(243,177,22,0.12);border:1px solid rgba(243,177,22,0.3);padding:1px 6px;border-radius:4px;">Dominante</span>
+                    </div>
+                    ${countryData.tema ? `<div class="theme">${countryData.tema}</div>` : ''}
+                    <div class="stats">
+                        <span class="volume">${Number(displayCount).toLocaleString()} ${unitLabel}</span>
+                        <span class="sentiment" style="color:${sentColor};">${sentLabel}</span>
+                    </div>
+                `;
+            }
         } else {
             return `<div class="bg-[#0b101d] text-white p-2 rounded-xl border border-white/10 shadow-2xl text-sm">${name}</div>`;
         }
@@ -1575,128 +1617,167 @@ export function GlobeComponent({
               </div>
 
               <div className="space-y-6">
-                  {/* Tema principal — sincronizado con el carrusel del tooltip */}
-                  <div className="bg-[#161d2b] p-4 rounded-xl transition-all duration-700">
-                      <p className="text-xs text-slate-400 mb-1">Tema principal</p>
-                      <p key={carouselIdx + '-title'} className="text-sm font-semibold text-blue-400 leading-snug animate-in fade-in duration-500">
-                          {activeArt?.title || selectedData.tema || '—'}
-                      </p>
-                      {activeArt?.media && (
-                          <span key={carouselIdx + '-media'} className="mt-2 inline-block text-[10px] font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md animate-in fade-in duration-500">
-                              {activeArt.media}
-                          </span>
-                      )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                  {selectedData.articulos ? (
+                    /* ── MODO PRENSA (CNE) ── */
+                    <>
+                      {/* Tema principal sincronizado con el carrusel */}
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          <p className="text-xl font-bold text-yellow-500">
-                              {Number(selectedData.totalDept ?? selectedData.volumen).toLocaleString()}
+                          <p className="text-xs text-slate-400 mb-1">Tema principal</p>
+                          <p key={carouselIdx + '-title'} className="text-sm font-semibold text-blue-400 leading-snug animate-in fade-in duration-500">
+                              {activeArt?.title || '—'}
                           </p>
-                          <p className="text-xs text-slate-400">artículos</p>
+                          {activeArt?.media && (
+                              <span key={carouselIdx + '-media'} className="mt-2 inline-block text-[10px] font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md animate-in fade-in duration-500">
+                                  {activeArt.media}
+                              </span>
+                          )}
                       </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-[#161d2b] p-4 rounded-xl">
+                              <p className="text-xl font-bold text-yellow-500">
+                                  {Number(selectedData.totalDept ?? selectedData.volumen).toLocaleString()}
+                              </p>
+                              <p className="text-xs text-slate-400">artículos</p>
+                          </div>
+                          <div className="bg-[#161d2b] p-4 rounded-xl">
+                              {(() => {
+                                  const cm: Record<string,string> = { Positivo:'#2eb88a', positivo:'#2eb88a', Negativo:'#df3a3a', negativo:'#df3a3a', Neutro:'#f3b116', neutral:'#f3b116' };
+                                  const raw = activeArt?.tone || selectedData.sentimiento || 'neutral';
+                                  return <>
+                                      <p key={carouselIdx + '-sent'} className="text-md font-bold animate-in fade-in duration-500" style={{ color: cm[raw] || '#94a3b8' }}>
+                                          {raw.charAt(0).toUpperCase() + raw.slice(1)}
+                                      </p>
+                                      <p className="text-xs text-slate-400">Sentimiento</p>
+                                  </>;
+                              })()}
+                          </div>
+                      </div>
+
+                      <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
+                          <p className="text-xs text-slate-400">Distribución de sentimiento</p>
+                          <SentimentDonut size={104} positivo={selectedData.sentimientoPct?.positivo || 0} neutral={selectedData.sentimientoPct?.neutral || 0} negativo={selectedData.sentimientoPct?.negativo || 0} colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }} />
+                      </div>
+
+                      <div>
+                          <p className="text-xs text-slate-400 mb-2">Distribución por tono</p>
+                          <div className="space-y-2">
+                              {([['Positivo','#2eb88a'],['Negativo','#df3a3a'],['Neutro','#f3b116']] as [string,string][]).map(([tone, col]) => {
+                                  const v = (selectedData.tonos || {})[tone] || 0;
+                                  const tot = Object.values(selectedData.tonos || {}).reduce((a: number, b) => a + (b as number), 0) as number;
+                                  return (
+                                      <div key={tone} className="flex items-center gap-3">
+                                          <span className="text-[10px] font-semibold w-16 shrink-0" style={{ color: col }}>{tone}</span>
+                                          <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${tot > 0 ? (v / tot) * 100 : 0}%`, background: col }} />
+                                          </div>
+                                          <span className="text-xs font-mono w-10 text-right text-white">{v.toLocaleString()}</span>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <p className="text-xs text-slate-400">Palabras clave</p>
+                          <div className="flex flex-wrap gap-1">
+                              {(() => {
+                                  const STOP = new Set(['de','la','el','en','y','a','los','del','se','las','un','por','con','una','su','para','es','al','que','lo','como','más','pero','sus','le','ya','o','este','esta','sí','porque','fue','han','son','ha','no','también','entre','si','donde','quien','cuando','cual','sobre','hasta','muy','sin','ser','hay','nos','ante','tras','durante','siendo','así','todo','cada','otro','otros','otra','otras']);
+                                  const freq: Record<string,number> = {};
+                                  (selectedData.articulos as any[]).forEach((a: any) => {
+                                      `${a.title || ''} ${a.summary || ''}`.toLowerCase().replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).forEach(w => {
+                                          if (w.length > 4 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
+                                      });
+                                  });
+                                  return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([w]) => (
+                                      <span key={w} className="px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-medium">{w}</span>
+                                  ));
+                              })()}
+                          </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs leading-relaxed">
+                          <p className="text-slate-400 mb-1">Resumen</p>
+                          <p key={carouselIdx + '-summary'} className="text-slate-300 animate-in fade-in duration-500">
+                              {activeArt?.summary || '—'}
+                          </p>
+                      </div>
+                    </>
+                  ) : (
+                    /* ── MODO SOCIAL (globo mundial) — comportamiento original ── */
+                    <>
                       <div className="bg-[#161d2b] p-4 rounded-xl">
-                          {(() => {
-                              const toneColorMap: Record<string,string> = { Positivo:'#2eb88a', positivo:'#2eb88a', Negativo:'#df3a3a', negativo:'#df3a3a', Neutro:'#f3b116', neutral:'#f3b116' };
-                              const raw = activeArt?.tone || selectedData.sentimiento || 'neutral';
-                              const col = toneColorMap[raw] || '#94a3b8';
-                              return <>
-                                  <p key={carouselIdx + '-sent'} className="text-md font-bold animate-in fade-in duration-500" style={{ color: col }}>
-                                      {raw.charAt(0).toUpperCase() + raw.slice(1)}
-                                  </p>
-                                  <p className="text-xs text-slate-400">Sentimiento</p>
-                              </>;
-                          })()}
+                          <p className="text-xs text-slate-400 mb-1">Tema principal</p>
+                          <p className="text-sm font-semibold text-blue-400">{selectedData.tema}</p>
                       </div>
-                  </div>
 
-                  <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
-                    <p className="text-xs text-slate-400">Distribución de sentimiento</p>
-                    <SentimentDonut
-                        size={104}
-                        positivo={selectedData.sentimientoPct?.positivo || 0}
-                        neutral={selectedData.sentimientoPct?.neutral || 0}
-                        negativo={selectedData.sentimientoPct?.negativo || 0}
-                        colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }}
-                    />
-                  </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-[#161d2b] p-4 rounded-xl">
+                              <p className="text-xl font-bold text-yellow-500">{Number(selectedData.volumen).toLocaleString()}</p>
+                              <p className="text-xs text-slate-400">menciones hoy</p>
+                              <p className="text-xs text-green-500 flex items-center mt-1"><FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 mr-1"/> {selectedData.pctCambio}%</p>
+                          </div>
+                          <div className="bg-[#161d2b] p-4 rounded-xl">
+                              {(() => {
+                                  const plats = selectedData.plataformas || {};
+                                  const dominantPlat = selectedPlatform || (Object.entries(plats).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] ?? '');
+                                  const platColors: Record<string,string> = { TikTok:'#69C9D0', X:'#ffffff', Instagram:'#E1306C', Facebook:'#1877f2' };
+                                  const col = platColors[dominantPlat] || '#94a3b8';
+                                  return <>
+                                      <div className="flex items-center gap-1.5 mb-1" dangerouslySetInnerHTML={{ __html: platformIcons[dominantPlat.toLowerCase()] ? `<span style="display:inline-flex;width:16px;height:16px;">${platformIcons[dominantPlat.toLowerCase()]}</span>` : '' }} />
+                                      <p className="text-md font-bold" style={{ color: col }}>{dominantPlat || '—'}</p>
+                                      <p className="text-xs text-slate-400">Red dominante</p>
+                                  </>;
+                              })()}
+                          </div>
+                      </div>
 
-                  {/* Distribución por tono en modo prensa, plataformas en modo social */}
-                  <div>
-                    {selectedData.articulos ? (
-                      <>
-                        <p className="text-xs text-slate-400 mb-2">Distribución por tono</p>
-                        <div className="space-y-2">
-                          {([['Positivo','#2eb88a'],['Negativo','#df3a3a'],['Neutro','#f3b116']] as [string,string][]).map(([tone, col]) => {
-                            const v = (selectedData.tonos || {})[tone] || 0;
-                            const tot = Object.values(selectedData.tonos || {}).reduce((a: number, b) => a + (b as number), 0) as number;
-                            return (
-                              <div key={tone} className="flex items-center gap-3">
-                                <span className="text-[10px] font-semibold w-16 shrink-0" style={{ color: col }}>{tone}</span>
-                                <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
-                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${tot > 0 ? (v / tot) * 100 : 0}%`, background: col }} />
-                                </div>
-                                <span className="text-xs font-mono w-10 text-right text-white">{v.toLocaleString()}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
-                        <div className="space-y-2">
-                            {(() => {
-                                const platformEntries = Object.entries(selectedData.plataformas) as [string, number][];
-                                const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
-                                return platformEntries
-                                    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                                    .map(([plat, vol]) => (
-                                        <div key={plat} className="flex items-center gap-3">
-                                            <div style={{ color: platformColors[plat] }}>
-                                                <span dangerouslySetInnerHTML={{ __html: platformIcons[plat.toLowerCase()] || "" }} />
-                                            </div>
-                                            <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
-                                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, background: platformColors[plat] }} />
-                                            </div>
-                                            <span className="text-xs font-mono w-16 text-right text-white">{(vol || 0).toLocaleString()}</span>
-                                        </div>
-                                    ));
-                            })()}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      <div className="space-y-2 bg-[#0e1526] p-4 rounded-xl border border-white/5">
+                          <p className="text-xs text-slate-400">Distribución de sentimiento</p>
+                          <SentimentDonut size={104} positivo={selectedData.sentimientoPct?.positivo || 0} neutral={selectedData.sentimientoPct?.neutral || 0} negativo={selectedData.sentimientoPct?.negativo || 0} colors={{ positivo: sentimentColors.positivo, neutral: sentimentColors.neutral, negativo: sentimentColors.negativo }} />
+                      </div>
 
-                  {/* Palabras clave extraídas de resúmenes en modo prensa */}
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-400">Palabras clave</p>
-                    <div className="flex flex-wrap gap-1">
-                        {selectedData.articulos ? (() => {
-                            const STOP = new Set(['de','la','el','en','y','a','los','del','se','las','un','por','con','una','su','para','es','al','que','lo','como','más','pero','sus','le','ya','o','este','esta','sí','porque','fue','han','son','ha','no','su','lo','le','sus','también','entre','si','donde','quien','cuando','cual','sobre','hasta','muy','sin','ser','hay','nos','sus','ante','tras','durante','siendo','así','todo','cada','otro','otros','otra','otras']);
-                            const freq: Record<string,number> = {};
-                            (selectedData.articulos as any[]).forEach((a: any) => {
-                                const text = `${a.title || ''} ${a.summary || ''}`;
-                                text.toLowerCase().replace(/[^a-záéíóúüñ\s]/gi,'').split(/\s+/).forEach(w => {
-                                    if (w.length > 4 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
-                                });
-                            });
-                            return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([w]) => (
-                                <span key={w} className="px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-medium">{w}</span>
-                            ));
-                        })() : selectedData.keywords?.map((k: string) => (
-                            <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-white">{k}</span>
-                        ))}
-                    </div>
-                  </div>
+                      <div>
+                          <p className="text-xs text-slate-400 mb-2">Volumen por plataforma</p>
+                          <div className="space-y-2">
+                              {(() => {
+                                  const platformEntries = Object.entries(selectedData.plataformas) as [string, number][];
+                                  const trueTotal = platformEntries.reduce((acc, [_, v]) => acc + (v || 0), 0);
+                                  return platformEntries.sort((a, b) => (b[1] || 0) - (a[1] || 0)).map(([plat, vol]) => (
+                                      <div key={plat} className="flex items-center gap-3">
+                                          <div style={{ color: platformColors[plat] }}>
+                                              <span dangerouslySetInnerHTML={{ __html: platformIcons[plat.toLowerCase()] || "" }} />
+                                          </div>
+                                          <div className="flex-1 h-1.5 rounded-full bg-[#161d2b]">
+                                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${trueTotal > 0 ? ((vol || 0) / trueTotal) * 100 : 0}%`, background: platformColors[plat] }} />
+                                          </div>
+                                          <span className="text-xs font-mono w-16 text-right text-white">{(vol || 0).toLocaleString()}</span>
+                                      </div>
+                                  ));
+                              })()}
+                          </div>
+                      </div>
 
-                  {/* Resumen — sincronizado con el carrusel del tooltip */}
-                  <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs leading-relaxed">
-                      <p className="text-slate-400 mb-1">Resumen</p>
-                      <p key={carouselIdx + '-summary'} className="text-slate-300 animate-in fade-in duration-500">
-                          {activeArt?.summary || selectedData.resumen || '—'}
-                      </p>
-                  </div>
+                      <div className="space-y-2">
+                          <p className="text-xs text-slate-400">Palabras clave</p>
+                          <div className="flex flex-wrap gap-1">
+                              {selectedData.keywords?.map((k: string) => <span key={k} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-white">{k}</span>)}
+                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <p className="text-xs text-slate-400">Top hashtags</p>
+                          <div className="flex flex-wrap gap-1">
+                              {selectedData.topHashtags?.map((h: string) => <span key={h} className="px-2 py-1 rounded bg-[#161d2b] text-[10px] text-yellow-500">{h}</span>)}
+                          </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-[#161d2b] border border-blue-500/20 text-xs text-slate-300 leading-relaxed">
+                          <p className="text-slate-400 mb-1">Resumen</p>
+                          {selectedData.resumen}
+                      </div>
+                    </>
+                  )}
               </div>
           </div>
       )}
